@@ -1,97 +1,95 @@
 import os
 import pickle
+import time
+import random
 import re
 import instaloader
-from pathlib import Path
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
 
-# --- 工具函数 ---
+# --- 1. 提取 Shortcode 的工具函数 ---
+def get_shortcode_from_url(url):
+    match = re.search(r'/(p|reel|tv)/([A-Za-z0-9_-]+)', url)
+    return match.group(2) if match else None
 
-def extract_shortcode(url_or_code: str) -> str:
-    """从URL或纯字符中提取Shortcode"""
-    match = re.search(r'/(p|reel|tv)/([A-Za-z0-9_-]+)', url_or_code)
-    if match:
-        return match.group(2)
-    if re.match(r'^[A-Za-z0-9_-]+$', url_or_code):
-        return url_or_code
-    raise ValueError("无效的链接或 Shortcode")
-
-def load_cookies_to_instaloader(L: instaloader.Instaloader, cookie_path="cookies.pkl"):
-    """将 Selenium 保存的 pickle cookies 注入到 Instaloader"""
-    if not os.path.exists(cookie_path):
-        print(f"❌ 错误：找不到 {cookie_path}，请先运行 auth.py 完成登录！")
-        return False
+# --- 2. 使用 Selenium 获取所有帖子链接 ---
+def fetch_post_urls(target_user, limit=5):
+    options = webdriver.ChromeOptions()
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     
+    post_urls = []
     try:
-        with open(cookie_path, "rb") as f:
-            cookies = pickle.load(f)
+        driver.get("https://www.instagram.com/")
+        # 加载已有的 Cookies
+        if os.path.exists("cookies.pkl"):
+            with open("cookies.pkl", "rb") as f:
+                for cookie in pickle.load(f):
+                    driver.add_cookie(cookie)
+            driver.refresh()
+            time.sleep(3)
+
+        print(f"🚀 正在模拟浏览器访问 @{target_user}...")
+        driver.get(f"https://www.instagram.com/{target_user}/")
+        time.sleep(5)
+
+        # 模拟滚动以加载更多链接
+        last_height = driver.execute_script("return document.body.scrollHeight")
+        while len(post_urls) < limit:
+            a_tags = driver.find_elements(By.TAG_NAME, "a")
+            for a in a_tags:
+                href = a.get_attribute("href")
+                if href and "/p/" in href and href not in post_urls:
+                    post_urls.append(href)
             
-        # 转换为 Requests 兼容的格式
-        session = L.context._session
-        for cookie in cookies:
-            session.cookies.set(cookie['name'], cookie['value'], domain='.instagram.com')
-        
-        # 验证登录状态（可选）
-        # L.test_login() 
-        print("✅ 已成功从 cookies.pkl 加载登录 Session")
-        return True
-    except Exception as e:
-        print(f"❌ 加载 Cookies 失败: {e}")
-        return False
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
+            new_height = driver.execute_script("return document.body.scrollHeight")
+            if new_height == last_height: break
+            last_height = new_height
+            
+    finally:
+        driver.quit()
+    return post_urls[:limit]
 
-# --- 主逻辑 ---
-
-def main():
-    print("=== IG 整合版下载器 (Selenium 登录 + Instaloader 下载) ===")
-    
-    # 1. 初始化 Instaloader
+# --- 3. 使用 Instaloader 下载指定 URL ---
+def download_with_instaloader(urls):
     L = instaloader.Instaloader(
         dirname_pattern="downloads/{target}",
-        filename_pattern="{date_utc}_UTC_{shortcode}",
-        download_pictures=True,
-        download_videos=True, # 默认开启视频
-        download_video_thumbnails=False,
-        save_metadata=False,
-        post_metadata_txt_pattern=""
+        download_videos=True,
+        save_metadata=False
     )
+    
+    # 注入 Cookie 避免 Instaloader 再次触发 429
+    if os.path.exists("cookies.pkl"):
+        with open("cookies.pkl", "rb") as f:
+            cookies = pickle.load(f)
+            for cookie in cookies:
+                L.context._session.cookies.set(cookie['name'], cookie['value'], domain='.instagram.com')
+        print("✅ Instaloader 已同步 Session")
 
-    # 2. 加载登录状态
-    if not load_cookies_to_instaloader(L):
-        return
-
-    # 3. 交互菜单
-    print("\n1. 下载单个帖子 (Post/Reel)")
-    print("2. 下载用户主页 (Profile)")
-    choice = input("请选择 (1/2): ").strip()
-
-    try:
-        if choice == '1':
-            target = input("请输入帖子链接或 Shortcode: ").strip()
-            shortcode = extract_shortcode(target)
-            print(f"🚀 正在抓取帖子: {shortcode}...")
+    for url in urls:
+        shortcode = get_shortcode_from_url(url)
+        if not shortcode: continue
+        
+        print(f"📥 正在下载帖子: {shortcode}")
+        try:
             post = instaloader.Post.from_shortcode(L.context, shortcode)
-            L.download_post(post, target="single_posts")
-            
-        elif choice == '2':
-            username = input("请输入目标用户名: ").strip()
-            max_num = input("下载前多少篇？(直接回车全部下载): ").strip()
-            max_num = int(max_num) if max_num.isdigit() else None
-            
-            print(f"🚀 正在检索 @{username} 的帖子...")
-            profile = instaloader.Profile.from_username(L.context, username)
-            
-            count = 0
-            for post in profile.get_posts():
-                if max_num and count >= max_num:
-                    break
-                
-                print(f"正在下载第 {count+1} 篇: {post.shortcode}")
-                L.download_post(post, target=profile.username)
-                count += 1
-                
-        print("\n✅ 任务完成！文件保存在 downloads 文件夹下。")
+            L.download_post(post, target="hybrid_download")
+            # 必须设置随机延迟，否则下载多图贴时仍会报 429
+            time.sleep(random.uniform(3, 7))
+        except Exception as e:
+            print(f"❌ 下载 {shortcode} 失败: {e}")
 
-    except Exception as e:
-        print(f"❌ 运行中出错: {e}")
-
+# --- 执行 ---
 if __name__ == "__main__":
-    main()
+    target = "jadeuly713"
+    # 第一步：模拟浏览器拿链接
+    urls = fetch_post_urls(target, limit=3)
+    print(f"🔗 成功获取 {len(urls)} 个链接")
+    
+    # 第二步：发给 Instaloader 下载
+    if urls:
+        download_with_instaloader(urls)
