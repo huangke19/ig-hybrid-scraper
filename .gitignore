@@ -17,3 +17,6 @@ config.yaml
 .DS_Store
 # 忽略 Telegram 配置
 tg_config.json
+# 忽略下载历史和缓存
+downloaded_users.json
+urls_cache.json
