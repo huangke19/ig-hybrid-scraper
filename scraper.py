@@ -280,8 +280,9 @@ def main() -> None:
     print("\n请选择下载范围：")
     print("  1. 下载最新的 N 条帖子")
     print("  2. 下载特定范围（第 M 到第 N 条）")
-    print("  3. 下载单条帖子（输入 URL 或 shortcode）")
-    choice = input("请输入数字 (1/2/3): ").strip()
+    print("  3. 下载指定第几条帖子")
+    print("  4. 下载单条帖子（输入 URL 或 shortcode）")
+    choice = input("请输入数字 (1/2/3/4): ").strip()
 
     urls_to_download: list[str] = []
 
@@ -300,6 +301,18 @@ def main() -> None:
         urls_to_download = all_urls[start - 1 : end]
 
     elif choice == "3":
+        position = int(input("请输入要下载第几条帖子？（从 1 开始计）"))
+        if position < 1:
+            print("❌ 位置必须大于等于 1。")
+            return
+        all_urls = fetch_post_urls(target_user, position)
+        if position <= len(all_urls):
+            urls_to_download = [all_urls[position - 1]]
+        else:
+            print(f"❌ 该账号只有 {len(all_urls)} 条帖子，无法获取第 {position} 条。")
+            return
+
+    elif choice == "4":
         raw = input("请输入帖子完整链接或 shortcode: ").strip()
         if raw.startswith("http"):
             urls_to_download = [raw]
