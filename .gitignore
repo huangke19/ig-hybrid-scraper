@@ -11,3 +11,5 @@ debug_page.html
 
 # 忽略系统文件
 .DS_Store
+# 忽略 Telegram 配置
+tg_config.json
