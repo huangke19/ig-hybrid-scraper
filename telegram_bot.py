@@ -54,8 +54,10 @@ def setup_tg_config() -> tuple[str, str]:
     if existing:
         token, chat_id = existing
         print(f"\n📋 检测到已保存的 Telegram 配置（Chat ID: {chat_id}）")
-        reuse = input("是否使用此配置？(y/n，默认 y): ").strip().lower()
-        if reuse != "n":
+        print("  1 - 使用此配置")
+        print("  2 - 重新输入")
+        reuse = input("请输入 (1/2，默认 1): ").strip()
+        if reuse != "2":
             return token, chat_id
 
     print("\n🤖 请配置 Telegram Bot：")

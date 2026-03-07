@@ -39,15 +39,18 @@ def setup_telegram_optional() -> None:
     if existing:
         token, chat_id = existing
         print(f"📋 检测到已保存的 Telegram 配置（Chat ID: {chat_id}）")
-        print("   如需修改请输入 y，否则直接回车跳过。")
-        choice = input("是否重新配置 Telegram Bot？(y/回车跳过): ").strip().lower()
-        if choice != "y":
+        print("  1 - 重新配置")
+        print("  2 - 保留现有配置")
+        choice = input("请输入 (1/2，默认 2): ").strip()
+        if choice != "1":
             print("  ✅ 保留现有 Telegram 配置。")
             return
 
     print("\n是否现在配置 Telegram Bot？（配置后 scraper.py 可直接推送内容）")
-    choice = input("配置 Telegram？(y/n，默认 n): ").strip().lower()
-    if choice != "y":
+    print("  1 - 是，现在配置")
+    print("  2 - 否，稍后配置")
+    choice = input("请输入 (1/2，默认 2): ").strip()
+    if choice != "1":
         print("  ℹ️  已跳过 Telegram 配置，可在运行 scraper.py 时再配置。")
         return
 

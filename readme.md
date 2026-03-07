@@ -12,12 +12,19 @@ ig_scraper/
 ├── utils.py             # 公共工具：浏览器、Cookie、重试、延时
 ├── telegram_bot.py      # Telegram 推送模块
 ├── config.py            # 配置文件管理模块
+├── web_app.py           # Web UI 服务（新增）
 ├── config.yaml          # 配置文件（可选，复制 config.yaml.example 修改）
 ├── config.yaml.example  # 配置文件示例
 ├── run                  # 快速启动脚本（自动激活虚拟环境）
+├── web                  # Web UI 启动脚本（新增）
 ├── monitor              # 监控脚本启动器
 ├── com.ig.monitor.plist # macOS launchd 配置文件
 ├── MONITOR.md           # 监控功能详细说明
+├── templates/           # Web UI 模板文件（新增）
+│   └── index.html
+├── static/              # Web UI 静态资源（新增）
+│   ├── css/style.css
+│   └── js/app.js
 ├── cookies.pkl          # 登录后自动生成，勿手动修改
 ├── tg_config.json       # Telegram 配置，自动生成
 ├── downloaded_users.json # 下载历史用户列表，自动生成
@@ -27,7 +34,7 @@ ig_scraper/
 ## 安装依赖
 
 ```bash
-pip install selenium webdriver-manager instaloader requests pyyaml
+pip install selenium webdriver-manager instaloader requests pyyaml flask
 ```
 
 ## 快速开始
@@ -42,7 +49,23 @@ python auth.py
 1. 弹出 Chrome 浏览器 → 手动完成 Instagram 登录 → 回车保存 Cookie
 2. 询问是否配置 Telegram Bot（可跳过，之后运行 scraper.py 时也可配置）
 
-### 第二步：运行下载器
+### 第二步：选择使用方式
+
+#### 方式 1：Web UI（推荐）
+
+```bash
+./web
+```
+
+然后在浏览器访问 http://localhost:5000
+
+Web UI 功能：
+- 📥 下载管理：可视化创建下载任务，实时查看进度
+- 📡 监控管理：查看监控状态，手动触发检查
+- ⚙️ 配置管理：在线配置 Telegram 推送
+- 📁 文件浏览：查看已下载的文件统计
+
+#### 方式 2：命令行
 
 ```bash
 ./run
@@ -77,6 +100,7 @@ python scraper.py
 - **性能优化**：预扫描文件索引，减少磁盘 I/O 操作
 - **批量下载**：支持一次性下载多个用户的内容
 - **新帖子监控**：自动检测用户发布新帖子，通过 Telegram 推送通知（详见 [MONITOR.md](MONITOR.md)）
+- **Web UI**：提供可视化界面，方便管理下载任务和配置（新增）
 
 ---
 

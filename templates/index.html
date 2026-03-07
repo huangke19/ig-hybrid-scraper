@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IG 爬虫 Web UI</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📸 IG 爬虫管理面板</h1>
+            <nav>
+                <button class="tab-btn active" data-tab="download">下载管理</button>
+                <button class="tab-btn" data-tab="monitor">监控管理</button>
+                <button class="tab-btn" data-tab="config">配置</button>
+                <button class="tab-btn" data-tab="files">文件浏览</button>
+            </nav>
+        </header>
+
+        <!-- 下载管理 -->
+        <div id="download-tab" class="tab-content active">
+            <div class="panel">
+                <h2>新建下载任务</h2>
+
+                <div class="form-group">
+                    <label>用户列表</label>
+                    <div id="user-list" class="user-chips">
+                        <div class="loading">加载中...</div>
+                    </div>
+                    <input type="text" id="custom-username" placeholder="或输入其他用户名" class="input">
+                </div>
+
+                <div class="form-group">
+                    <label>下载类型</label>
+                    <select id="download-type" class="input">
+                        <option value="latest">最新 N 条帖子</option>
+                        <option value="range">指定范围（第 M ~ N 条）</option>
+                        <option value="position">指定第几条帖子</option>
+                        <option value="single">单条帖子（URL/shortcode）</option>
+                    </select>
+                </div>
+
+                <div id="latest-options" class="options-group">
+                    <div class="form-group">
+                        <label>下载数量</label>
+                        <input type="number" id="post-count" value="10" min="1" class="input">
+                    </div>
+                </div>
+
+                <div id="range-options" class="options-group" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>起始位置</label>
+                            <input type="number" id="start-pos" value="1" min="1" class="input">
+                        </div>
+                        <div class="form-group">
+                            <label>结束位置</label>
+                            <input type="number" id="end-pos" value="10" min="1" class="input">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="position-options" class="options-group" style="display: none;">
+                    <div class="form-group">
+                        <label>帖子位置（从 1 开始）</label>
+                        <input type="number" id="post-position" value="1" min="1" class="input">
+                    </div>
+                </div>
+
+                <div id="single-options" class="options-group" style="display: none;">
+                    <div class="form-group">
+                        <label>帖子 URL 或 shortcode</label>
+                        <input type="text" id="post-url" placeholder="https://www.instagram.com/p/..." class="input">
+                    </div>
+                </div>
+
+                <button id="start-download-btn" class="btn btn-primary">开始下载</button>
+            </div>
+
+            <div class="panel">
+                <h2>任务列表</h2>
+                <div id="task-list">
+                    <div class="empty-state">暂无任务</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 监控管理 -->
+        <div id="monitor-tab" class="tab-content">
+            <div class="panel">
+                <h2>监控状态</h2>
+                <p class="hint">监控功能会自动检测常用用户的新帖子并推送通知</p>
+                <div id="monitor-list">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 配置 -->
+        <div id="config-tab" class="tab-content">
+            <div class="panel">
+                <h2>Telegram 推送配置</h2>
+                <div id="telegram-status" class="status-box">
+                    <div class="loading">加载中...</div>
+                </div>
+
+                <div class="form-group">
+                    <label>Bot Token</label>
+                    <input type="text" id="tg-token" placeholder="从 @BotFather 获取" class="input">
+                    <small>在 Telegram 搜索 @BotFather，发送 /newbot 创建 Bot</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Chat ID</label>
+                    <input type="text" id="tg-chat-id" placeholder="从 @userinfobot 获取" class="input">
+                    <small>在 Telegram 搜索 @userinfobot，发送任意消息获取你的 ID</small>
+                </div>
+
+                <button id="save-telegram-btn" class="btn btn-primary">保存并测试</button>
+            </div>
+        </div>
+
+        <!-- 文件浏览 -->
+        <div id="files-tab" class="tab-content">
+            <div class="panel">
+                <h2>已下载文件</h2>
+                <div id="files-list">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图片查看器模态框 -->
+        <div id="image-modal" class="modal">
+            <div class="modal-content">
+                <span class="modal-close">&times;</span>
+                <div class="modal-header">
+                    <h3 id="modal-username"></h3>
+                </div>
+                <div class="modal-body">
+                    <div id="modal-gallery" class="gallery"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图片放大查看器 -->
+        <div id="lightbox" class="lightbox">
+            <span class="lightbox-close">&times;</span>
+            <span class="lightbox-prev">&#10094;</span>
+            <span class="lightbox-next">&#10095;</span>
+            <img id="lightbox-img" class="lightbox-img" src="" alt="" style="display: none;">
+            <video id="lightbox-video" class="lightbox-video" controls style="display: none;">
+                <source src="" type="video/mp4">
+            </video>
+            <div class="lightbox-caption"></div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
