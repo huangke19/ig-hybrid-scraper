@@ -10,6 +10,7 @@ scraper.py - IG 精准范围下载器（优化版）
   5. 支持从 config.yaml 读取配置
 """
 
+import json
 import random
 import time
 from pathlib import Path
@@ -43,6 +44,30 @@ except ImportError:
     config = None
 
 MEDIA_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".mp4", ".mov"}
+
+
+# ─────────────────────────────────────────────
+# 下载历史管理
+# ─────────────────────────────────────────────
+
+def load_downloaded_users() -> list[str]:
+    """加载下载历史用户列表"""
+    try:
+        with open("downloaded_users.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return []
+    except json.JSONDecodeError:
+        return []
+
+
+def save_downloaded_user(username: str) -> None:
+    """保存下载过的用户名到历史记录（去重）"""
+    users = load_downloaded_users()
+    if username not in users:
+        users.append(username)
+        with open("downloaded_users.json", "w", encoding="utf-8") as f:
+            json.dump(users, f, ensure_ascii=False, indent=2)
 
 
 # ─────────────────────────────────────────────
@@ -275,7 +300,17 @@ def download_selected_posts(
         # 检查文件是否已存在（断点续传）
         existing_files = _find_post_files(base_dir, shortcode)
         if existing_files:
-            print(f"  ⏭️  [{i}/{total}] 已存在，跳过: {shortcode}（{len(existing_files)} 个文件）")
+            print(f"  ⏭️  [{i}/{total}] 已存在，跳过下载: {shortcode}（{len(existing_files)} 个文件）")
+
+            # 如果启用了推送，仍然将已存在的文件加入推送列表
+            if push_mode != "none" and tg_config:
+                downloaded_items.append((existing_files, shortcode))
+
+                # 逐条推送模式：立即推送
+                if push_mode == "each":
+                    print(f"  📤 推送已存在文件: {shortcode}")
+                    _push_files(token, chat_id, existing_files, shortcode)
+
             continue
 
         print(f"  📥 [{i}/{total}] 下载中: {shortcode}")
@@ -346,11 +381,11 @@ def ask_telegram_push() -> tuple[tuple[str, str] | None, str]:
 
     print("\n" + "─" * 45)
     print("📬 是否将下载内容推送到 Telegram？")
-    print("  y - 是，推送到 Telegram")
-    print("  n - 否，仅本地保存")
-    choice = input("请输入 (y/n，默认 n): ").strip().lower()
+    print("  1 - 是，推送到 Telegram")
+    print("  2 - 否，仅本地保存")
+    choice = input("请输入 (1/2，默认 2): ").strip()
 
-    if choice != "y":
+    if choice != "1":
         print("  ℹ️  已跳过 Telegram 推送。")
         return None, "none"
 
@@ -395,6 +430,8 @@ def batch_download_mode(users: list[str]) -> None:
                 tg_config=tg_config,
                 push_mode=push_mode,
             )
+            # 保存用户到下载历史
+            save_downloaded_user(user)
         except Exception as e:
             print(f"  ❌ 用户 @{user} 下载失败: {e}")
             continue
@@ -411,27 +448,41 @@ def main() -> None:
     print("   IG 精准范围下载器（优化版）")
     print("=" * 45)
 
-    # 显示常用用户列表
+    # 加载常用用户和下载历史
     favorite_users = config.favorite_users if config else []
+    downloaded_users = load_downloaded_users()
 
-    if favorite_users:
-        print("\n常用用户：")
-        for i, user in enumerate(favorite_users, start=1):
-            print(f"  {i}. {user}")
-        print(f"  {len(favorite_users) + 1}. 输入其他用户名")
-        print(f"  {len(favorite_users) + 2}. 批量下载（所有常用用户）")
+    # 合并用户列表：常用用户优先，然后是下载历史中不在常用列表的用户
+    all_users = []
+    user_labels = []  # 用于显示标签（⭐ 或 📥）
 
-        choice = input(f"\n请选择 (1-{len(favorite_users) + 2}): ").strip()
+    for user in favorite_users:
+        all_users.append(user)
+        user_labels.append("⭐")
+
+    for user in downloaded_users:
+        if user not in favorite_users:
+            all_users.append(user)
+            user_labels.append("📥")
+
+    if all_users:
+        print("\n用户列表（⭐常用 📥历史）：")
+        for i, (user, label) in enumerate(zip(all_users, user_labels), start=1):
+            print(f"  {i}. {label} {user}")
+        print(f"  {len(all_users) + 1}. 输入其他用户名")
+        print(f"  {len(all_users) + 2}. 批量下载（所有用户）")
+
+        choice = input(f"\n请选择 (1-{len(all_users) + 2}): ").strip()
 
         try:
             choice_num = int(choice)
-            if 1 <= choice_num <= len(favorite_users):
-                target_user = favorite_users[choice_num - 1]
-            elif choice_num == len(favorite_users) + 1:
+            if 1 <= choice_num <= len(all_users):
+                target_user = all_users[choice_num - 1]
+            elif choice_num == len(all_users) + 1:
                 target_user = input("\n请输入目标账号 ID: ").strip()
-            elif choice_num == len(favorite_users) + 2:
+            elif choice_num == len(all_users) + 2:
                 # 批量下载模式
-                batch_download_mode(favorite_users)
+                batch_download_mode(all_users)
                 return
             else:
                 print("❌ 无效选项")
@@ -502,6 +553,10 @@ def main() -> None:
         tg_config=tg_config,
         push_mode=push_mode,
     )
+
+    # 保存用户到下载历史
+    save_downloaded_user(target_user)
+
     print("\n✨ 任务全部完成！")
 
 
