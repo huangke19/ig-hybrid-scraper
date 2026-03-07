@@ -1,115 +1,176 @@
+# 📸 IG Scraper
+
+**中文** | [English](#-ig-scraper-1)
+
+一个基于 Selenium + Instaloader 的 Instagram 图片/视频下载工具，支持按范围精准下载指定账号的帖子。
 
 ---
 
-# 📸 Instagram Hybrid Scraper (Selenium + Instaloader)
+## ✨ 功能特性
 
-这是一个结合了 **Selenium** 模拟行为与 **Instaloader** 静态下载优势的 Instagram 爬虫工具。
-
-### 🌟 核心优势
-
-* **突破 429 限制**：通过模拟真人浏览器操作提取链接，有效规避 Instagram 严厉的 API 频率限制。
-* **精准范围下载**：支持下载“前 $N$ 条”或“第 $A$ 到 $B$ 条”帖子，避免全量下载带来的封号风险。
-* **高清原图/视频**：直接从 CDN 获取原始画质，支持多图贴（Carousel）和视频。
-* **Session 保持**：只需登录一次，后续自动复用 Cookie。
+- 🔐 手动登录保存 Cookie，支持双重验证账号
+- 📥 下载图片、视频（含 Reels）
+- 🎯 三种下载模式：最新 N 条 / 指定范围 / 单条帖子
+- 🔄 下载失败自动重试（指数退避）
+- 🛡️ 防检测：屏蔽 `navigator.webdriver`、随机延时、模拟真人停顿
+- ⚡ 高效去重，大量帖子场景下性能优化
 
 ---
 
-## 🛠️ 环境要求
-
-* **Python**: 3.8+
-* **浏览器**: Google Chrome (及配套的 WebDriver)
-* **依赖库**:
-```bash
-pip install selenium instaloader requests webdriver-manager
+## 📁 项目结构
 
 ```
-
-
+ig_scraper/
+├── auth.py        # 登录并保存 Cookie
+├── scraper.py     # 主下载程序
+├── utils.py       # 公共工具模块
+├── cookies.pkl    # 登录后自动生成，勿上传
+└── downloads/     # 下载内容保存目录，自动创建
+```
 
 ---
 
 ## 🚀 快速开始
 
-项目由两个核心文件组成：授权模块 `auth.py` 和 抓取模块 `scraper.py`。
+### 1. 安装依赖
 
-### 第一步：获取登录授权
+```bash
+pip install selenium webdriver-manager instaloader requests
+```
 
-运行 `auth.py` 以保存你的登录状态。
+### 2. 登录保存 Cookie
 
 ```bash
 python auth.py
-
 ```
 
-* 浏览器会自动打开 Instagram 登录页。
-* **手动输入** 账号密码并完成登录（包括验证码）。
-* 看到首页后，回到终端按 **回车**。
-* 项目根目录将生成 `cookies.pkl`。
+浏览器会自动打开 Instagram 登录页，完成登录（含双重验证）后，等首页 Feed 完全加载再按回车，Cookie 会自动保存到本地。
 
-### 第二步：执行抓取
-
-运行 `scraper.py`，根据提示进行交互：
+### 3. 运行下载器
 
 ```bash
 python scraper.py
-
 ```
 
-1. **输入目标 ID**: 比如 `jadeuly713`。
-2. **选择下载模式**:
-* **1**: 下载最新的 $N$ 条（如：下载前 5 条）。
-* **2**: 下载指定范围（如：下载第 3 条到第 8 条）。
-* **3**: 下载单条特定帖子（粘贴完整 URL）。
+按照提示输入目标账号和下载范围即可：
 
+```
+请输入目标账号 ID（例如: nasa）: nasa
 
+请选择下载范围：
+  1. 下载最新的 N 条帖子
+  2. 下载特定范围（第 M 到第 N 条）
+  3. 下载单条帖子（输入 URL 或 shortcode）
+```
+
+下载内容保存在 `downloads/<账号名>/` 目录下。
 
 ---
 
-## 📂 项目结构
+## ⚠️ 注意事项
 
-```text
+- `cookies.pkl` 包含登录凭证，请勿上传到公开仓库（已建议加入 `.gitignore`）
+- 下载间隔已内置随机延时，请勿手动调快，避免触发封号
+- Cookie 有效期有限，若提示登录失效请重新运行 `auth.py`
+- 本工具仅供学习研究使用，请遵守 Instagram 服务条款
+
+---
+
+## 🔧 `.gitignore` 建议
+
+```
+cookies.pkl
+downloads/
+.venv/
+__pycache__/
+```
+
+---
+---
+
+# 📸 IG Scraper
+
+[中文](#-ig-scraper) | **English**
+
+A Selenium + Instaloader powered Instagram media downloader. Precisely download photos and videos from any public account by range or individually.
+
+---
+
+## ✨ Features
+
+- 🔐 Manual login with Cookie persistence — supports two-factor authentication
+- 📥 Downloads photos, videos, and Reels
+- 🎯 Three download modes: latest N posts / custom range / single post
+- 🔄 Auto-retry on failure with exponential backoff
+- 🛡️ Bot detection bypass: hides `navigator.webdriver`, randomized delays, human-like pauses
+- ⚡ Set-based deduplication for fast performance on large profiles
+
+---
+
+## 📁 Project Structure
+
+```
 ig_scraper/
-├── auth.py           # 登录授权，生成 cookies.pkl
-├── scraper.py        # 核心逻辑：链接提取 + 批量下载
-├── .gitignore        # 忽略隐私数据上传（必须配置）
-├── README.md         # 项目说明文档
-└── downloads/        # (自动生成) 媒体文件存放目录
-
+├── auth.py        # Login and save cookies
+├── scraper.py     # Main downloader
+├── utils.py       # Shared utilities
+├── cookies.pkl    # Auto-generated after login — do not commit
+└── downloads/     # Downloaded media — auto-created
 ```
 
 ---
 
-## ⚠️ 反爬避坑守则
+## 🚀 Quick Start
 
-* **适度下载**：建议单次任务不超过 30 篇，每天总量控制在 200 篇以内。
-* **随机延迟**：脚本已内置 `8-15` 秒的随机冷却，请勿为了速度修改此参数。
-* **隐私安全**：**切勿将 `cookies.pkl` 推送到 GitHub**。你的 `.gitignore` 应包含该文件。
-* **冷却机制**：每下载 5 篇帖子，脚本会自动进行一次 60 秒以上的“深度休息”。
-
----
-
-## 📄 免责声明
-
-本项目仅供学习研究使用。请尊重 Instagram 社区准则及创作者版权。严禁将本项目用于任何商业用途或侵权行为。
-
----
-
-### 💡 建议操作：添加 `requirements.txt`
-
-为了让 GitHub 上的其他人更方便安装环境，建议你在终端运行：
+### 1. Install Dependencies
 
 ```bash
-pip freeze > requirements.txt
-
+pip install selenium webdriver-manager instaloader requests
 ```
 
-然后把这个 `requirements.txt` 也推送到 GitHub，别人只需运行 `pip install -r requirements.txt` 就能配置好环境。
-
-**现在就把这份 README 推送到 GitHub 吧：**
+### 2. Login & Save Cookies
 
 ```bash
-git add README.md
-git commit -m "docs: 完善项目说明文档"
-git push
+python auth.py
+```
 
+A Chrome window will open the Instagram login page. Complete the login (including 2FA if prompted), wait until the home Feed has fully loaded, then press Enter. Cookies will be saved automatically.
+
+### 3. Run the Downloader
+
+```bash
+python scraper.py
+```
+
+Follow the prompts to enter the target account and choose a download mode:
+
+```
+Enter target username (e.g. nasa): nasa
+
+Select download mode:
+  1. Download the latest N posts
+  2. Download a specific range (e.g. post 3 to 8)
+  3. Download a single post (URL or shortcode)
+```
+
+Downloaded files are saved to `downloads/<username>/`.
+
+---
+
+## ⚠️ Important Notes
+
+- `cookies.pkl` contains your login credentials — **never commit it to a public repo** (add to `.gitignore`)
+- Built-in random delays protect your account — do not reduce them
+- Cookies expire over time; re-run `auth.py` if you see login errors
+- This tool is intended for personal and educational use only. Please respect Instagram's Terms of Service.
+
+---
+
+## 🔧 Recommended `.gitignore`
+
+```
+cookies.pkl
+downloads/
+.venv/
+__pycache__/
 ```
