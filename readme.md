@@ -6,18 +6,21 @@
 
 ```
 ig_scraper/
-├── auth.py           # 登录 & 初始化配置（首次运行）
-├── scraper.py        # 主程序：下载 + 可选 Telegram 推送
-├── utils.py          # 公共工具：浏览器、Cookie、重试、延时
-├── telegram_bot.py   # Telegram 推送模块
-├── cookies.pkl       # 登录后自动生成，勿手动修改
-└── tg_config.json    # Telegram 配置，自动生成
+├── auth.py              # 登录 & 初始化配置（首次运行）
+├── scraper.py           # 主程序：下载 + 可选 Telegram 推送
+├── utils.py             # 公共工具：浏览器、Cookie、重试、延时
+├── telegram_bot.py      # Telegram 推送模块
+├── config.py            # 配置文件管理模块
+├── config.yaml          # 配置文件（可选，复制 config.yaml.example 修改）
+├── config.yaml.example  # 配置文件示例
+├── cookies.pkl          # 登录后自动生成，勿手动修改
+└── tg_config.json       # Telegram 配置，自动生成
 ```
 
 ## 安装依赖
 
 ```bash
-pip install selenium webdriver-manager instaloader requests
+pip install selenium webdriver-manager instaloader requests pyyaml
 ```
 
 ## 快速开始
@@ -50,6 +53,62 @@ python scraper.py
 下载完成后会询问是否推送到 Telegram，以及推送时机（实时 / 批量）。
 
 下载文件保存在：`downloads/<账号名>/`
+
+---
+
+## 配置文件（可选）
+
+你可以通过 `config.yaml` 配置文件来管理所有设置，避免每次运行时重复输入。
+
+### 创建配置文件
+
+```bash
+cp config.yaml.example config.yaml
+```
+
+然后编辑 `config.yaml`，根据需要修改配置项。配置文件已包含详细的中文注释。
+
+### 配置项说明
+
+#### 浏览器设置 (browser)
+- `headless`: 是否使用无头模式（不显示浏览器窗口）
+  - `false`: 显示浏览器窗口，适合本地调试
+  - `true`: 无头模式，适合服务器环境
+- `user_agent`: 浏览器 User-Agent，用于伪装成真实浏览器
+
+#### 下载设置 (download)
+- `base_dir`: 下载文件保存的基础目录（默认 `downloads`）
+- `save_metadata`: 是否保存帖子元数据（JSON 格式，包含点赞数、评论数等）
+- `download_videos`: 是否下载视频（设为 `false` 则只下载图片）
+- `download_comments`: 是否下载评论（会显著增加时间）
+- `max_retries`: 下载失败时的最大重试次数
+- `retry_delay`: 重试前的等待时间（秒），每次重试会按 1.5 倍递增
+
+#### 行为模拟设置 (behavior)
+用于防止被检测为机器人：
+- `scroll_pause_min/max`: 滚动页面时的暂停时间范围（秒）
+- `human_delay_min/max`: 下载每个帖子之间的延时范围（秒）
+- `long_pause_prob`: 长暂停的触发概率（0-1，0.1 表示 10%）
+- `long_pause_min/max`: 长暂停的时间范围（秒），模拟真人停下来查看内容
+
+#### Telegram 推送设置 (telegram)
+- `enabled`: 是否启用 Telegram 推送
+  - 设为 `true` 且填写了 token 和 chat_id 后，会自动推送，不再询问
+- `bot_token`: Telegram Bot Token（从 @BotFather 获取）
+- `chat_id`: Telegram Chat ID（从 @userinfobot 获取）
+- `push_mode`: 推送模式
+  - `each`: 每条下载完立即推送（实时）
+  - `batch`: 全部下载完成后统一推送（推荐）
+  - `none`: 不推送
+
+#### Cookie 设置 (cookies)
+- `path`: Cookie 文件路径（首次运行 `auth.py` 后自动生成）
+
+### 配置优先级
+
+1. 如果存在 `config.yaml`，程序会优先使用配置文件中的设置
+2. 配置文件中未设置的项会使用默认值
+3. Telegram 设置：配置文件优先级高于交互式输入
 
 ---
 
@@ -91,6 +150,7 @@ python scraper.py
 ```
 cookies.pkl
 tg_config.json
+config.yaml
 downloads/
 .venv/
 __pycache__/

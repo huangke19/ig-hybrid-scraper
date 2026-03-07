@@ -1,12 +1,13 @@
 """
 scraper.py - IG 精准范围下载器（优化版）
-依赖：utils.py、telegram_bot.py（需在同目录下）
+依赖：utils.py、telegram_bot.py、config.py（需在同目录下）
 
 功能：
   1. 下载最新 N 条帖子
   2. 下载指定范围（第 M ~ 第 N 条）
   3. 下载单条帖子（URL 或 shortcode）
   4. 下载完成后可选推送到 Telegram
+  5. 支持从 config.yaml 读取配置
 """
 
 import random
@@ -33,6 +34,12 @@ from telegram_bot import (
     load_tg_config,
 )
 
+try:
+    from config import Config
+    config = Config()
+except ImportError:
+    config = None
+
 MEDIA_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".mp4", ".mov"}
 
 
@@ -46,9 +53,14 @@ def fetch_post_urls(target_user: str, required_count: int) -> list[str]:
     - 使用 set 去重，O(1) 查找，大量帖子时性能显著优于 list。
     - 连续 MAX_NO_CHANGE 次页面高度不变才认为真正到底，
       避免懒加载未完成时提前停止。
+    - 滚动暂停时间从配置文件读取。
     """
     MAX_NO_CHANGE = 3
-    SCROLL_PAUSE  = (2.0, 3.5)
+    if config:
+        behavior = config.behavior_config
+        SCROLL_PAUSE = (behavior.get('scroll_pause_min', 2.0), behavior.get('scroll_pause_max', 3.5))
+    else:
+        SCROLL_PAUSE = (2.0, 3.5)
 
     driver = init_driver(headless=False)
     seen: set[str] = set()
@@ -106,12 +118,17 @@ def _build_loader(save_folder: str) -> instaloader.Instaloader:
     初始化 Instaloader 并完整注入 Cookie。
     使用平铺目录：所有文件存入 downloads/<save_folder>/
     文件名含 shortcode，便于下载后精确定位。
+    配置项从 config.yaml 读取。
     """
+    base_dir = config.download_base_dir if config else "downloads"
+    download_videos = config.download_videos if config else True
+    save_metadata = config.download_metadata if config else False
+
     L = instaloader.Instaloader(
-        dirname_pattern=f"downloads/{save_folder}",
+        dirname_pattern=f"{base_dir}/{save_folder}",
         filename_pattern="{shortcode}_{filename}",
-        download_videos=True,
-        save_metadata=False,
+        download_videos=download_videos,
+        save_metadata=save_metadata,
         quiet=True,
     )
     L.context._session.cookies = load_cookies_for_requests()
@@ -134,9 +151,12 @@ def _find_post_files(base_dir: str, shortcode: str) -> list[str]:
     ])
 
 
-@retry(max_times=3, delay=10, backoff=1.5)
+@retry(max_times=None, delay=None, backoff=1.5)
 def _download_one(L: instaloader.Instaloader, shortcode: str, save_folder: str) -> None:
-    """下载单个帖子，失败时由 @retry 自动重试。"""
+    """
+    下载单个帖子，失败时由 @retry 自动重试。
+    重试次数和延时从配置文件读取。
+    """
     post = instaloader.Post.from_shortcode(L.context, shortcode)
     L.download_post(post, target=save_folder)
 
@@ -178,7 +198,8 @@ def download_selected_posts(
     downloaded_items: list[tuple[list[str], str]] = []  # (files, shortcode)
 
     token, chat_id = tg_config if tg_config else ("", "")
-    base_dir = str(Path("downloads") / save_folder)
+    base_dir = config.download_base_dir if config else "downloads"
+    base_dir = str(Path(base_dir) / save_folder)
 
     for i, url in enumerate(urls, start=1):
         shortcode = get_shortcode_from_url(url)
@@ -240,8 +261,18 @@ def download_selected_posts(
 def ask_telegram_push() -> tuple[tuple[str, str] | None, str]:
     """
     询问用户是否推送到 Telegram，以及推送方式。
+    如果配置文件中已启用 Telegram，则直接使用配置。
     返回 (tg_config, push_mode)。
     """
+    # 优先从配置文件读取
+    if config and config.telegram_enabled:
+        token = config.telegram_token
+        chat_id = config.telegram_chat_id
+        push_mode = config.telegram_push_mode
+        if token and chat_id:
+            print(f"\n✅ 已从配置文件加载 Telegram 设置（推送模式: {push_mode}）")
+            return (token, chat_id), push_mode
+
     print("\n" + "─" * 45)
     print("📬 是否将下载内容推送到 Telegram？")
     print("  y - 是，推送到 Telegram")

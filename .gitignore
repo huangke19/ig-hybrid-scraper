@@ -8,6 +8,7 @@ downloads/
 # 忽略敏感信息和调试文件
 cookies.pkl
 debug_page.html
+config.yaml
 
 # 忽略系统文件
 .DS_Store
