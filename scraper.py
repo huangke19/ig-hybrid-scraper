@@ -315,15 +315,18 @@ def main() -> None:
     print("  4. 下载单条帖子（输入 URL 或 shortcode）")
     choice = input("请输入数字 (1/2/3/4): ").strip()
 
+    # 先询问 Telegram 推送设置，避免浏览器打开后还要等待输入
+    tg_config, push_mode = ask_telegram_push()
+
     urls_to_download: list[str] = []
 
     if choice == "1":
-        count = int(input("想下载前几条？ "))
+        count = int(input("\n想下载前几条？ "))
         all_urls = fetch_post_urls(target_user, count)
         urls_to_download = all_urls[:count]
 
     elif choice == "2":
-        start = int(input("从第几条开始？（从 1 开始计）"))
+        start = int(input("\n从第几条开始？（从 1 开始计）"))
         end   = int(input("到第几条结束？ "))
         if start < 1 or end < start:
             print("❌ 范围输入有误，请确保 start >= 1 且 end >= start。")
@@ -332,7 +335,7 @@ def main() -> None:
         urls_to_download = all_urls[start - 1 : end]
 
     elif choice == "3":
-        position = int(input("请输入要下载第几条帖子？（从 1 开始计）"))
+        position = int(input("\n请输入要下载第几条帖子？（从 1 开始计）"))
         if position < 1:
             print("❌ 位置必须大于等于 1。")
             return
@@ -344,7 +347,7 @@ def main() -> None:
             return
 
     elif choice == "4":
-        raw = input("请输入帖子完整链接或 shortcode: ").strip()
+        raw = input("\n请输入帖子完整链接或 shortcode: ").strip()
         if raw.startswith("http"):
             urls_to_download = [raw]
         else:
@@ -357,8 +360,6 @@ def main() -> None:
     if not urls_to_download:
         print("\n⚠️  未能获取到有效链接，请检查账号名或网络连接。")
         return
-
-    tg_config, push_mode = ask_telegram_push()
 
     print(f"\n✅ 准备就绪，即将下载 {len(urls_to_download)} 个帖子...\n")
     download_selected_posts(
