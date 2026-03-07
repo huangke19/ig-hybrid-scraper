@@ -47,7 +47,31 @@ MEDIA_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".mp4", ".mov"}
 # 1. 链接提取模块
 # ─────────────────────────────────────────────
 
-def fetch_post_urls(target_user: str, required_count: int) -> list[str]:
+def fetch_post_urls_via_api(target_user: str, required_count: int) -> list[str]:
+    """
+    使用 Instaloader API 快速获取帖子链接（无需浏览器）。
+    速度快，但可能更容易被检测。
+    """
+    L = instaloader.Instaloader(
+        quiet=True,
+        max_connection_attempts=1  # 遇到错误立即失败，不等待重试
+    )
+    L.context._session.cookies = load_cookies_for_requests()
+
+    profile = instaloader.Profile.from_username(L.context, target_user)
+    posts = profile.get_posts()
+
+    urls = []
+    for post in posts:
+        if len(urls) >= required_count:
+            break
+        url = f"https://www.instagram.com/p/{post.shortcode}/"
+        urls.append(url)
+
+    return urls
+
+
+def fetch_post_urls_via_selenium(target_user: str, required_count: int) -> list[str]:
     """
     用 Selenium 模拟滚动，从目标用户主页抓取帖子链接。
     - 使用 set 去重，O(1) 查找，大量帖子时性能显著优于 list。
@@ -107,6 +131,23 @@ def fetch_post_urls(target_user: str, required_count: int) -> list[str]:
 
     print(f"  🔗 共获取 {len(post_urls)} 条链接。")
     return post_urls
+
+
+def fetch_post_urls(target_user: str, required_count: int) -> list[str]:
+    """
+    智能获取帖子链接：优先使用 API 方式，失败时自动回退到浏览器方式。
+    - API 方式：快速，无需启动浏览器（推荐）
+    - 浏览器方式：稳定，但速度较慢（备用）
+    """
+    try:
+        print(f"\n🚀 正在获取 @{target_user} 的帖子链接（API 方式）...")
+        urls = fetch_post_urls_via_api(target_user, required_count)
+        print(f"  ✅ API 方式成功，共获取 {len(urls)} 条链接")
+        return urls
+    except Exception as e:
+        print(f"  ⚠️  API 方式失败: {e}")
+        print(f"  🔄 切换到浏览器方式...")
+        return fetch_post_urls_via_selenium(target_user, required_count)
 
 
 # ─────────────────────────────────────────────
