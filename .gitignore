@@ -5,6 +5,9 @@ __pycache__/
 # 忽略下载的图片数据
 downloads/
 
+# 忽略缓存文件
+.cache/
+
 # 忽略敏感信息和调试文件
 cookies.pkl
 debug_page.html

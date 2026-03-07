@@ -150,6 +150,11 @@ class Config:
     def behavior_config(self) -> dict[str, Any]:
         return self.get_section('behavior')
 
+    @property
+    def favorite_users(self) -> list[str]:
+        """获取常用用户列表"""
+        return self._data.get('favorite_users', [])
+
 
 def create_example_config(output_path: str = "config.yaml.example") -> None:
     """创建示例配置文件（带中文注释）"""

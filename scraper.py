@@ -24,6 +24,8 @@ from utils import (
     load_cookies_for_requests,
     load_cookies_for_selenium,
     retry,
+    save_urls_cache,
+    load_urls_cache,
 )
 from telegram_bot import (
     send_message,
@@ -133,21 +135,43 @@ def fetch_post_urls_via_selenium(target_user: str, required_count: int) -> list[
     return post_urls
 
 
-def fetch_post_urls(target_user: str, required_count: int) -> list[str]:
+def fetch_post_urls(target_user: str, required_count: int, use_cache: bool = True) -> list[str]:
     """
-    智能获取帖子链接：优先使用 API 方式，失败时自动回退到浏览器方式。
-    - API 方式：快速，无需启动浏览器（推荐）
-    - 浏览器方式：稳定，但速度较慢（备用）
+    智能获取帖子链接：
+    1. 如果启用缓存且缓存存在，使用缓存
+    2. 否则，优先使用 API 方式，失败时自动回退到浏览器方式
+    3. 获取后保存到缓存
     """
+    # 尝试从缓存加载
+    if use_cache:
+        cached_urls = load_urls_cache(target_user)
+        if cached_urls and len(cached_urls) >= required_count:
+            print(f"  ✅ 使用缓存的链接")
+            return cached_urls[:required_count]
+        elif cached_urls:
+            print(f"  ⚠️  缓存链接不足（需要 {required_count} 条，缓存有 {len(cached_urls)} 条），重新获取")
+
+    # 缓存不存在或不足，重新获取
     try:
         print(f"\n🚀 正在获取 @{target_user} 的帖子链接（API 方式）...")
         urls = fetch_post_urls_via_api(target_user, required_count)
         print(f"  ✅ API 方式成功，共获取 {len(urls)} 条链接")
+
+        # 保存到缓存
+        if use_cache:
+            save_urls_cache(target_user, urls)
+
         return urls
     except Exception as e:
         print(f"  ⚠️  API 方式失败: {e}")
         print(f"  🔄 切换到浏览器方式...")
-        return fetch_post_urls_via_selenium(target_user, required_count)
+        urls = fetch_post_urls_via_selenium(target_user, required_count)
+
+        # 保存到缓存
+        if use_cache:
+            save_urls_cache(target_user, urls)
+
+        return urls
 
 
 # ─────────────────────────────────────────────
@@ -344,6 +368,40 @@ def ask_telegram_push() -> tuple[tuple[str, str] | None, str]:
     return tg_config, push_mode
 
 
+def batch_download_mode(users: list[str]) -> None:
+    """批量下载多个用户的内容"""
+    print(f"\n📦 批量下载模式：将下载 {len(users)} 个用户的内容")
+
+    # 询问每个用户的下载数量
+    try:
+        count = int(input("每个用户下载多少条帖子？ "))
+    except ValueError:
+        print("❌ 无效输入")
+        return
+
+    # 询问 Telegram 推送设置
+    tg_config, push_mode = ask_telegram_push()
+
+    for i, user in enumerate(users, start=1):
+        print(f"\n{'=' * 45}")
+        print(f"  [{i}/{len(users)}] 正在处理: @{user}")
+        print(f"{'=' * 45}")
+
+        try:
+            urls = fetch_post_urls(user, count)
+            download_selected_posts(
+                urls,
+                user,
+                tg_config=tg_config,
+                push_mode=push_mode,
+            )
+        except Exception as e:
+            print(f"  ❌ 用户 @{user} 下载失败: {e}")
+            continue
+
+    print("\n✨ 批量下载全部完成！")
+
+
 # ─────────────────────────────────────────────
 # 4. 交互菜单
 # ─────────────────────────────────────────────
@@ -353,7 +411,36 @@ def main() -> None:
     print("   IG 精准范围下载器（优化版）")
     print("=" * 45)
 
-    target_user = input("\n请输入目标账号 ID（例如: jadeuly713）: ").strip()
+    # 显示常用用户列表
+    favorite_users = config.favorite_users if config else []
+
+    if favorite_users:
+        print("\n常用用户：")
+        for i, user in enumerate(favorite_users, start=1):
+            print(f"  {i}. {user}")
+        print(f"  {len(favorite_users) + 1}. 输入其他用户名")
+        print(f"  {len(favorite_users) + 2}. 批量下载（所有常用用户）")
+
+        choice = input(f"\n请选择 (1-{len(favorite_users) + 2}): ").strip()
+
+        try:
+            choice_num = int(choice)
+            if 1 <= choice_num <= len(favorite_users):
+                target_user = favorite_users[choice_num - 1]
+            elif choice_num == len(favorite_users) + 1:
+                target_user = input("\n请输入目标账号 ID: ").strip()
+            elif choice_num == len(favorite_users) + 2:
+                # 批量下载模式
+                batch_download_mode(favorite_users)
+                return
+            else:
+                print("❌ 无效选项")
+                return
+        except ValueError:
+            print("❌ 无效输入")
+            return
+    else:
+        target_user = input("\n请输入目标账号 ID（例如: jadeuly713）: ").strip()
 
     print("\n请选择下载范围：")
     print("  1. 下载最新的 N 条帖子")
