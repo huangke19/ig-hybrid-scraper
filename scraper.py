@@ -1,15 +1,17 @@
 """
 scraper.py - IG 精准范围下载器（优化版）
-依赖：utils.py（需在同目录下）
+依赖：utils.py、telegram_bot.py（需在同目录下）
 
 功能：
   1. 下载最新 N 条帖子
   2. 下载指定范围（第 M ~ 第 N 条）
   3. 下载单条帖子（URL 或 shortcode）
+  4. 下载完成后可选推送到 Telegram
 """
 
 import random
 import time
+from pathlib import Path
 
 import instaloader
 from selenium.webdriver.common.by import By
@@ -22,6 +24,16 @@ from utils import (
     load_cookies_for_selenium,
     retry,
 )
+from telegram_bot import (
+    send_message,
+    send_media_group,
+    send_photo,
+    send_video,
+    setup_tg_config,
+    load_tg_config,
+)
+
+MEDIA_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".mp4", ".mov"}
 
 
 # ─────────────────────────────────────────────
@@ -35,15 +47,14 @@ def fetch_post_urls(target_user: str, required_count: int) -> list[str]:
     - 连续 MAX_NO_CHANGE 次页面高度不变才认为真正到底，
       避免懒加载未完成时提前停止。
     """
-    MAX_NO_CHANGE = 3   # 连续高度不变的阈值
-    SCROLL_PAUSE  = (2.0, 3.5)  # 每次滚动后随机等待区间（秒）
+    MAX_NO_CHANGE = 3
+    SCROLL_PAUSE  = (2.0, 3.5)
 
     driver = init_driver(headless=False)
     seen: set[str] = set()
     post_urls: list[str] = []
 
     try:
-        # ── 注入 Cookie，恢复登录态 ──
         driver.get("https://www.instagram.com/")
         if load_cookies_for_selenium(driver):
             driver.refresh()
@@ -57,7 +68,6 @@ def fetch_post_urls(target_user: str, required_count: int) -> list[str]:
         no_change_count = 0
 
         while len(post_urls) < required_count:
-            # ── 收集当前页面所有帖子链接 ──
             for a in driver.find_elements(By.TAG_NAME, "a"):
                 href = a.get_attribute("href") or ""
                 if ("/p/" in href or "/reel/" in href) and href not in seen:
@@ -67,7 +77,6 @@ def fetch_post_urls(target_user: str, required_count: int) -> list[str]:
             if len(post_urls) >= required_count:
                 break
 
-            # ── 滚动到底部 ──
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(random.uniform(*SCROLL_PAUSE))
 
@@ -93,15 +102,36 @@ def fetch_post_urls(target_user: str, required_count: int) -> list[str]:
 # ─────────────────────────────────────────────
 
 def _build_loader(save_folder: str) -> instaloader.Instaloader:
-    """初始化 Instaloader 并完整注入 Cookie。"""
+    """
+    初始化 Instaloader 并完整注入 Cookie。
+    使用平铺目录：所有文件存入 downloads/<save_folder>/
+    文件名含 shortcode，便于下载后精确定位。
+    """
     L = instaloader.Instaloader(
-        dirname_pattern=f"downloads/{save_folder}/{{target}}",
+        dirname_pattern=f"downloads/{save_folder}",
+        filename_pattern="{shortcode}_{filename}",
         download_videos=True,
         save_metadata=False,
-        quiet=True,  # 减少 instaloader 自身的冗余输出
+        quiet=True,
     )
     L.context._session.cookies = load_cookies_for_requests()
     return L
+
+
+def _find_post_files(base_dir: str, shortcode: str) -> list[str]:
+    """
+    下载完成后，递归扫描 base_dir 中所有文件名包含 shortcode 的媒体文件。
+    使用 rglob 兼容 instaloader 生成子目录或平铺两种结构。
+    """
+    base = Path(base_dir)
+    if not base.exists():
+        return []
+    return sorted([
+        str(p) for p in base.rglob("*")
+        if p.is_file()
+        and p.suffix.lower() in MEDIA_EXTS
+        and shortcode in p.name
+    ])
 
 
 @retry(max_times=3, delay=10, backoff=1.5)
@@ -111,15 +141,44 @@ def _download_one(L: instaloader.Instaloader, shortcode: str, save_folder: str) 
     L.download_post(post, target=save_folder)
 
 
-def download_selected_posts(urls: list[str], save_folder: str) -> None:
+def _push_files(token: str, chat_id: str, files: list[str], shortcode: str) -> None:
+    """将一组媒体文件推送到 Telegram，自动选择最合适的发送方式。"""
+    caption = f"📸 <b>{shortcode}</b>"
+    if len(files) == 1:
+        fp = files[0]
+        ext = Path(fp).suffix.lower()
+        ok = send_video(token, chat_id, fp, caption) if ext in {".mp4", ".mov"} else send_photo(token, chat_id, fp, caption)
+    else:
+        ok = send_media_group(token, chat_id, files, caption)
+
+    if ok:
+        print(f"  ✅ 推送成功: {shortcode}（{len(files)} 个文件）")
+    else:
+        print(f"  ❌ 推送失败: {shortcode}")
+
+
+def download_selected_posts(
+    urls: list[str],
+    save_folder: str,
+    tg_config: tuple[str, str] | None = None,
+    push_mode: str = "none",
+) -> None:
     """
     批量下载帖子。
-    - 每次下载后调用 human_sleep 模拟真人行为。
-    - 单条下载逻辑由 _download_one 封装，支持自动重试。
+
+    参数：
+      tg_config  : (bot_token, chat_id) 或 None（不推送）
+      push_mode  : "each"  → 每条下载后立即推送
+                   "batch" → 全部下载完毕后统一推送
+                   "none"  → 不推送
     """
     L = _build_loader(save_folder)
     total = len(urls)
     failed: list[str] = []
+    downloaded_items: list[tuple[list[str], str]] = []  # (files, shortcode)
+
+    token, chat_id = tg_config if tg_config else ("", "")
+    base_dir = str(Path("downloads") / save_folder)
 
     for i, url in enumerate(urls, start=1):
         shortcode = get_shortcode_from_url(url)
@@ -131,12 +190,26 @@ def download_selected_posts(urls: list[str], save_folder: str) -> None:
         try:
             _download_one(L, shortcode, save_folder)
             print(f"  ✅ [{i}/{total}] 完成: {shortcode}")
+
+            # 下载后动态扫描实际生成的文件
+            files = _find_post_files(base_dir, shortcode)
+            if files:
+                print(f"        找到 {len(files)} 个媒体文件")
+            else:
+                print(f"  ⚠️  [{i}/{total}] 未在 {base_dir} 找到媒体文件，请检查下载目录")
+            downloaded_items.append((files, shortcode))
+
+            # ── 逐条推送模式 ──
+            if push_mode == "each" and tg_config and files:
+                print(f"  📤 实时推送: {shortcode}")
+                _push_files(token, chat_id, files, shortcode)
+
         except Exception as e:
             print(f"  ❌ [{i}/{total}] 最终失败，已记录: {shortcode} ({e})")
             failed.append(shortcode)
 
         if i < total:
-            human_sleep()  # 最后一条不需要等待
+            human_sleep()
 
     # ── 下载结束，汇报失败列表 ──
     if failed:
@@ -146,9 +219,55 @@ def download_selected_posts(urls: list[str], save_folder: str) -> None:
     else:
         print("\n🎉 所有帖子下载成功！")
 
+    # ── 批量推送模式 ──
+    if push_mode == "batch" and tg_config:
+        valid_items = [(f, sc) for f, sc in downloaded_items if f]
+        print(f"\n📤 开始批量推送 {len(valid_items)} 个帖子到 Telegram...")
+        send_message(token, chat_id, f"🚀 开始推送 <b>@{save_folder}</b> 的 {len(valid_items)} 个帖子...")
+        for idx, (files, sc) in enumerate(valid_items, start=1):
+            print(f"  [{idx}/{len(valid_items)}] 推送: {sc}")
+            _push_files(token, chat_id, files, sc)
+            if idx < len(valid_items):
+                time.sleep(1.5)
+        send_message(token, chat_id, f"✅ <b>@{save_folder}</b> 全部推送完毕！共 {len(valid_items)} 个帖子。")
+        print("🎉 所有帖子已推送到 Telegram！")
+
 
 # ─────────────────────────────────────────────
-# 3. 交互菜单
+# 3. Telegram 推送配置询问
+# ─────────────────────────────────────────────
+
+def ask_telegram_push() -> tuple[tuple[str, str] | None, str]:
+    """
+    询问用户是否推送到 Telegram，以及推送方式。
+    返回 (tg_config, push_mode)。
+    """
+    print("\n" + "─" * 45)
+    print("📬 是否将下载内容推送到 Telegram？")
+    print("  y - 是，推送到 Telegram")
+    print("  n - 否，仅本地保存")
+    choice = input("请输入 (y/n，默认 n): ").strip().lower()
+
+    if choice != "y":
+        print("  ℹ️  已跳过 Telegram 推送。")
+        return None, "none"
+
+    tg_config = setup_tg_config()
+
+    print("\n请选择推送时机：")
+    print("  1 - 每条下载完立即推送（实时）")
+    print("  2 - 全部下载完成后统一推送")
+    mode_choice = input("请输入 (1/2，默认 2): ").strip()
+
+    push_mode = "each" if mode_choice == "1" else "batch"
+    mode_label = "实时逐条推送" if push_mode == "each" else "下载完成后批量推送"
+    print(f"  ✅ 已选择：{mode_label}")
+
+    return tg_config, push_mode
+
+
+# ─────────────────────────────────────────────
+# 4. 交互菜单
 # ─────────────────────────────────────────────
 
 def main() -> None:
@@ -182,7 +301,6 @@ def main() -> None:
 
     elif choice == "3":
         raw = input("请输入帖子完整链接或 shortcode: ").strip()
-        # 兼容两种输入：完整 URL 或纯 shortcode
         if raw.startswith("http"):
             urls_to_download = [raw]
         else:
@@ -196,8 +314,15 @@ def main() -> None:
         print("\n⚠️  未能获取到有效链接，请检查账号名或网络连接。")
         return
 
+    tg_config, push_mode = ask_telegram_push()
+
     print(f"\n✅ 准备就绪，即将下载 {len(urls_to_download)} 个帖子...\n")
-    download_selected_posts(urls_to_download, target_user)
+    download_selected_posts(
+        urls_to_download,
+        target_user,
+        tg_config=tg_config,
+        push_mode=push_mode,
+    )
     print("\n✨ 任务全部完成！")
 
 
