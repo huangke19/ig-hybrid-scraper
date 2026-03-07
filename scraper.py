@@ -234,11 +234,35 @@ def _find_post_files(base_dir: str, shortcode: str) -> list[str]:
     if not base.exists():
         return []
     return sorted([
-        str(p) for p in base.rglob("*")
-        if p.is_file()
-        and p.suffix.lower() in MEDIA_EXTS
-        and shortcode in p.name
+        str(p) for p in base.rglob(f"*{shortcode}*")
+        if p.is_file() and p.suffix.lower() in MEDIA_EXTS
     ])
+
+
+def _build_files_index(base_dir: str) -> dict[str, list[str]]:
+    """
+    一次性扫描目录，建立 shortcode -> 文件列表 的索引。
+    用于批量下载时避免重复扫描磁盘。
+    返回: {shortcode: [file_path1, file_path2, ...]}
+    """
+    base = Path(base_dir)
+    if not base.exists():
+        return {}
+
+    index: dict[str, list[str]] = {}
+    for p in base.rglob("*"):
+        if p.is_file() and p.suffix.lower() in MEDIA_EXTS:
+            # 从文件名中提取 shortcode（假设格式为 {shortcode}_xxx）
+            filename = p.name
+            # shortcode 通常是文件名的第一部分（下划线之前）
+            parts = filename.split("_")
+            if parts:
+                shortcode = parts[0]
+                if shortcode not in index:
+                    index[shortcode] = []
+                index[shortcode].append(str(p))
+
+    return index
 
 
 @retry(max_times=None, delay=None, backoff=1.5)
@@ -291,14 +315,20 @@ def download_selected_posts(
     base_dir = config.download_base_dir if config else "downloads"
     base_dir = str(Path(base_dir) / save_folder)
 
+    # 预扫描：一次性建立已下载文件索引
+    print(f"  🔍 正在扫描已下载文件...")
+    existing_files_index = _build_files_index(base_dir)
+    if existing_files_index:
+        print(f"  📂 找到 {len(existing_files_index)} 个已下载的帖子")
+
     for i, url in enumerate(urls, start=1):
         shortcode = get_shortcode_from_url(url)
         if not shortcode:
             print(f"  ⚠️  [{i}/{total}] 无法解析 shortcode，跳过: {url}")
             continue
 
-        # 检查文件是否已存在（断点续传）
-        existing_files = _find_post_files(base_dir, shortcode)
+        # 从索引中查找已存在的文件（无需重复扫描磁盘）
+        existing_files = existing_files_index.get(shortcode, [])
         if existing_files:
             print(f"  ⏭️  [{i}/{total}] 已存在，跳过下载: {shortcode}（{len(existing_files)} 个文件）")
 
@@ -322,6 +352,8 @@ def download_selected_posts(
             files = _find_post_files(base_dir, shortcode)
             if files:
                 print(f"        找到 {len(files)} 个媒体文件")
+                # 更新索引
+                existing_files_index[shortcode] = files
             else:
                 print(f"  ⚠️  [{i}/{total}] 未在 {base_dir} 找到媒体文件，请检查下载目录")
             downloaded_items.append((files, shortcode))
