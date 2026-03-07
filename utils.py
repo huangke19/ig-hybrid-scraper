@@ -50,6 +50,21 @@ def init_driver(headless: bool = None) -> webdriver.Chrome:
     )
     options.add_argument(f"user-agent={user_agent}" if not user_agent.startswith("user-agent=") else user_agent)
 
+    # 性能优化配置
+    options.add_argument("--disable-gpu")  # 禁用 GPU 加速
+    options.add_argument("--disable-extensions")  # 禁用扩展
+    options.add_argument("--disable-dev-shm-usage")  # 优化共享内存使用
+    options.add_argument("--disable-software-rasterizer")  # 禁用软件光栅化
+    options.add_argument("--log-level=3")  # 减少日志输出
+    options.add_argument("--disable-notifications")  # 禁用通知
+
+    # 禁用图片加载（最大的性能提升，可节省 30-50% 加载时间）
+    prefs = {
+        'profile.managed_default_content_settings.images': 2,
+        'profile.default_content_setting_values': {'images': 2}
+    }
+    options.add_experimental_option('prefs', prefs)
+
     if headless:
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")

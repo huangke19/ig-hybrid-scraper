@@ -248,6 +248,12 @@ def download_selected_posts(
             print(f"  ⚠️  [{i}/{total}] 无法解析 shortcode，跳过: {url}")
             continue
 
+        # 检查文件是否已存在（断点续传）
+        existing_files = _find_post_files(base_dir, shortcode)
+        if existing_files:
+            print(f"  ⏭️  [{i}/{total}] 已存在，跳过: {shortcode}（{len(existing_files)} 个文件）")
+            continue
+
         print(f"  📥 [{i}/{total}] 下载中: {shortcode}")
         try:
             _download_one(L, shortcode, save_folder)
