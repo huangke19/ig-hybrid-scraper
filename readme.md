@@ -13,8 +13,11 @@ ig_scraper/
 ├── config.py            # 配置文件管理模块
 ├── config.yaml          # 配置文件（可选，复制 config.yaml.example 修改）
 ├── config.yaml.example  # 配置文件示例
+├── run                  # 快速启动脚本（自动激活虚拟环境）
 ├── cookies.pkl          # 登录后自动生成，勿手动修改
-└── tg_config.json       # Telegram 配置，自动生成
+├── tg_config.json       # Telegram 配置，自动生成
+├── downloaded_users.json # 下载历史用户列表，自动生成
+└── .cache/              # 链接缓存目录，自动生成
 ```
 
 ## 安装依赖
@@ -38,6 +41,12 @@ python auth.py
 ### 第二步：运行下载器
 
 ```bash
+./run
+```
+
+或者：
+
+```bash
 python scraper.py
 ```
 
@@ -53,6 +62,16 @@ python scraper.py
 下载完成后会询问是否推送到 Telegram，以及推送时机（实时 / 批量）。
 
 下载文件保存在：`downloads/<账号名>/`
+
+### 功能特性
+
+- **用户列表管理**：自动记录下载过的用户，下次运行时显示在选项中
+  - ⭐ 常用用户（在 `config.yaml` 中配置）
+  - 📥 历史用户（自动记录到 `downloaded_users.json`）
+- **链接缓存**：首次获取的帖子链接会缓存到 `.cache/` 目录，避免重复获取
+- **断点续传**：已下载的文件会自动跳过，支持中断后继续下载
+- **性能优化**：预扫描文件索引，减少磁盘 I/O 操作
+- **批量下载**：支持一次性下载多个用户的内容
 
 ---
 
@@ -104,6 +123,18 @@ cp config.yaml.example config.yaml
 #### Cookie 设置 (cookies)
 - `path`: Cookie 文件路径（首次运行 `auth.py` 后自动生成）
 
+#### 常用用户列表 (favorite_users)
+在配置文件中添加常用用户列表，运行时会优先显示：
+
+```yaml
+favorite_users:
+  - user1
+  - user2
+  - user3
+```
+
+这些用户会在选项中标记为 ⭐（常用用户）。
+
 ### 配置优先级
 
 1. 如果存在 `config.yaml`，程序会优先使用配置文件中的设置
@@ -151,6 +182,9 @@ cp config.yaml.example config.yaml
 cookies.pkl
 tg_config.json
 config.yaml
+downloaded_users.json
+urls_cache.json
+.cache/
 downloads/
 .venv/
 __pycache__/
