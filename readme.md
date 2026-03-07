@@ -8,12 +8,16 @@
 ig_scraper/
 ├── auth.py              # 登录 & 初始化配置（首次运行）
 ├── scraper.py           # 主程序：下载 + 可选 Telegram 推送
+├── monitor.py           # 监控脚本：自动检测新帖子并推送通知
 ├── utils.py             # 公共工具：浏览器、Cookie、重试、延时
 ├── telegram_bot.py      # Telegram 推送模块
 ├── config.py            # 配置文件管理模块
 ├── config.yaml          # 配置文件（可选，复制 config.yaml.example 修改）
 ├── config.yaml.example  # 配置文件示例
 ├── run                  # 快速启动脚本（自动激活虚拟环境）
+├── monitor              # 监控脚本启动器
+├── com.ig.monitor.plist # macOS launchd 配置文件
+├── MONITOR.md           # 监控功能详细说明
 ├── cookies.pkl          # 登录后自动生成，勿手动修改
 ├── tg_config.json       # Telegram 配置，自动生成
 ├── downloaded_users.json # 下载历史用户列表，自动生成
@@ -72,6 +76,29 @@ python scraper.py
 - **断点续传**：已下载的文件会自动跳过，支持中断后继续下载
 - **性能优化**：预扫描文件索引，减少磁盘 I/O 操作
 - **批量下载**：支持一次性下载多个用户的内容
+- **新帖子监控**：自动检测用户发布新帖子，通过 Telegram 推送通知（详见 [MONITOR.md](MONITOR.md)）
+
+---
+
+## 新帖子监控（可选）
+
+如果你想自动监控用户发布新帖子并收到 Telegram 通知，可以使用监控功能。
+
+### 快速开始
+
+```bash
+# 测试一次（推荐先测试）
+python monitor.py --once
+
+# 持续运行（每 24 小时检查一次）
+./monitor
+
+# 或者配置 macOS 自动运行（推荐）
+cp com.ig.monitor.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.ig.monitor.plist
+```
+
+详细说明请查看 [MONITOR.md](MONITOR.md)
 
 ---
 

@@ -20,3 +20,7 @@ tg_config.json
 # 忽略下载历史和缓存
 downloaded_users.json
 urls_cache.json
+# 忽略监控历史和日志
+monitor_history.json
+monitor.log
+monitor.error.log
