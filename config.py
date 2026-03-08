@@ -44,6 +44,8 @@ class Config:
     def _default_config(self) -> dict[str, Any]:
         """返回默认配置"""
         return {
+            'favorite_users': [],
+            'monitor_users': [],
             'browser': {
                 'headless': False,
                 'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -87,6 +89,8 @@ class Config:
                 for key, default_value in values.items():
                     if key not in user_config[section]:
                         user_config[section][key] = default_value
+            elif isinstance(values, list) and section in user_config and not isinstance(user_config[section], list):
+                user_config[section] = values
 
         return user_config
 
@@ -154,6 +158,11 @@ class Config:
     def favorite_users(self) -> list[str]:
         """获取常用用户列表"""
         return self._data.get('favorite_users', [])
+
+    @property
+    def monitor_users(self) -> list[str]:
+        """获取监控用户列表"""
+        return self._data.get('monitor_users', [])
 
 
 def create_example_config(output_path: str = "config.yaml.example") -> None:

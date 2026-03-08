@@ -114,13 +114,13 @@ def monitor_once() -> None:
     print("=" * 50)
 
     # 获取要监控的用户列表
-    favorite_users = config.favorite_users if config else []
+    monitor_users = getattr(config, 'monitor_users', []) if config else []
 
-    if not favorite_users:
-        print("\n⚠️  未配置常用用户列表，请在 config.yaml 中添加 favorite_users")
+    if not monitor_users:
+        print("\n⚠️  未配置监控用户列表，请在 config.yaml 中添加 monitor_users")
         return
 
-    print(f"\n监控用户列表: {', '.join(favorite_users)}")
+    print(f"\n监控用户列表: {', '.join(monitor_users)}")
 
     # 加载 Telegram 配置
     tg_config = load_tg_config()
@@ -133,7 +133,7 @@ def monitor_once() -> None:
 
     # 检查每个用户
     notifications = []
-    for username in favorite_users:
+    for username in monitor_users:
         new_count, latest_shortcode = check_new_posts(username)
 
         if new_count > 0:
