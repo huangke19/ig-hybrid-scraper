@@ -4,6 +4,7 @@ web_app.py - IG 爬虫 Web UI
 """
 
 from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask_socketio import SocketIO, emit
 from pathlib import Path
 import json
 import threading
@@ -26,6 +27,8 @@ except ImportError:
     config = None
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'ig-scraper-secret-key'
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # 全局任务状态
 download_tasks = {}
@@ -79,6 +82,7 @@ def start_download():
     end_pos = data.get('end', 10)
     position = data.get('position', 1)
     url = data.get('url', '')
+    enable_push = data.get('enable_push', True)
 
     if not username and download_type != 'single':
         return jsonify({'error': '用户名不能为空'}), 400
@@ -100,7 +104,7 @@ def start_download():
     # 后台执行下载
     thread = threading.Thread(
         target=_execute_download,
-        args=(task_id, username, download_type, count, start_pos, end_pos, position, url)
+        args=(task_id, username, download_type, count, start_pos, end_pos, position, url, enable_push)
     )
     thread.daemon = True
     thread.start()
@@ -108,11 +112,21 @@ def start_download():
     return jsonify({'task_id': task_id, 'message': '任务已创建'})
 
 
-def _execute_download(task_id, username, download_type, count, start_pos, end_pos, position, url):
+def _execute_download(task_id, username, download_type, count, start_pos, end_pos, position, url, enable_push):
     """执行下载任务（后台线程）"""
     try:
         download_tasks[task_id]['status'] = 'running'
         download_tasks[task_id]['message'] = '正在获取帖子链接...'
+        socketio.emit('task_update', download_tasks[task_id])
+
+        # 调试日志
+        print(f"\n[DEBUG] 下载参数:")
+        print(f"  username: {username}")
+        print(f"  download_type: {download_type}")
+        print(f"  count: {count}")
+        print(f"  start_pos: {start_pos}, end_pos: {end_pos}")
+        print(f"  position: {position}")
+        print(f"  enable_push: {enable_push}")
 
         # 获取链接
         if download_type == 'single':
@@ -133,20 +147,26 @@ def _execute_download(task_id, username, download_type, count, start_pos, end_po
         else:  # latest
             urls = fetch_post_urls(username, count)
 
+        print(f"[DEBUG] 获取到 {len(urls)} 条链接")
+        print(f"[DEBUG] URLs: {urls[:3]}...")  # 只打印前3条
+
         download_tasks[task_id]['total'] = len(urls)
         download_tasks[task_id]['message'] = f'开始下载 {len(urls)} 个帖子...'
+        socketio.emit('task_update', download_tasks[task_id])
 
-        # 获取 Telegram 配置
+        # 获取 Telegram 配置（仅在启用推送时）
         tg_config = None
         push_mode = 'none'
-        if config and config.telegram_enabled:
-            tg_config = (config.telegram_token, config.telegram_chat_id)
-            push_mode = config.telegram_push_mode
-        else:
-            tg_data = load_tg_config()
-            if tg_data:
-                tg_config = tg_data
-                push_mode = 'batch'
+
+        if enable_push:
+            if config and config.telegram_enabled:
+                tg_config = (config.telegram_token, config.telegram_chat_id)
+                push_mode = config.telegram_push_mode
+            else:
+                tg_data = load_tg_config()
+                if tg_data:
+                    tg_config = tg_data
+                    push_mode = 'batch'
 
         # 下载
         download_selected_posts(
@@ -162,10 +182,12 @@ def _execute_download(task_id, username, download_type, count, start_pos, end_po
         download_tasks[task_id]['status'] = 'completed'
         download_tasks[task_id]['progress'] = len(urls)
         download_tasks[task_id]['message'] = '下载完成！'
+        socketio.emit('task_update', download_tasks[task_id])
 
     except Exception as e:
         download_tasks[task_id]['status'] = 'failed'
         download_tasks[task_id]['message'] = f'下载失败: {str(e)}'
+        socketio.emit('task_update', download_tasks[task_id])
 
 
 @app.route('/api/tasks', methods=['GET'])
@@ -339,10 +361,15 @@ def serve_download(filename):
 # ─────────────────────────────────────────────
 
 if __name__ == '__main__':
+    import socket
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+
     print("=" * 50)
     print("   IG 爬虫 Web UI")
     print("=" * 50)
-    print("\n🌐 访问地址: http://localhost:5000")
+    print("\n🌐 本地访问: http://localhost:5000")
+    print(f"📱 手机访问: http://192.168.5.31:5000")
     print("按 Ctrl+C 停止服务\n")
 
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)

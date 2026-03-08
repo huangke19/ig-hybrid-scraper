@@ -3,7 +3,57 @@
 // ─────────────────────────────────────────────
 
 let selectedUsername = '';
-let taskRefreshInterval = null;
+let socket = null;
+
+// ─────────────────────────────────────────────
+// WebSocket 连接
+// ─────────────────────────────────────────────
+
+function initWebSocket() {
+    socket = io();
+
+    socket.on('connect', () => {
+        console.log('WebSocket 已连接');
+    });
+
+    socket.on('disconnect', () => {
+        console.log('WebSocket 已断开');
+    });
+
+    socket.on('task_update', (task) => {
+        console.log('收到任务更新:', task);
+        updateTaskInList(task);
+    });
+}
+
+function updateTaskInList(task) {
+    const taskList = document.getElementById('task-list');
+    const existingTask = document.querySelector(`[data-task-id="${task.id}"]`);
+
+    const taskHtml = `
+        <div class="task-item" data-task-id="${task.id}">
+            <div class="task-header">
+                <div class="task-username">@${task.username}</div>
+                <div class="task-status ${task.status}">${getStatusText(task.status)}</div>
+            </div>
+            <div class="task-message">${task.message}</div>
+            ${task.total > 0 ? `
+                <div class="task-progress">
+                    <div class="task-progress-bar" style="width: ${(task.progress / task.total) * 100}%"></div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+
+    if (existingTask) {
+        existingTask.outerHTML = taskHtml;
+    } else {
+        if (taskList.querySelector('.empty-state')) {
+            taskList.innerHTML = '';
+        }
+        taskList.insertAdjacentHTML('afterbegin', taskHtml);
+    }
+}
 
 // ─────────────────────────────────────────────
 // 工具函数
@@ -22,6 +72,16 @@ function showToast(message, type = 'success') {
 function formatDate(isoString) {
     const date = new Date(isoString);
     return date.toLocaleString('zh-CN');
+}
+
+function getStatusText(status) {
+    const statusMap = {
+        'pending': '等待中',
+        'running': '运行中',
+        'completed': '已完成',
+        'failed': '失败'
+    };
+    return statusMap[status] || status;
 }
 
 // ─────────────────────────────────────────────
@@ -147,7 +207,6 @@ document.getElementById('start-download-btn').addEventListener('click', async ()
         if (response.ok) {
             showToast('任务已创建，开始下载');
             loadTasks();
-            startTaskRefresh();
         } else {
             showToast(data.error || '创建任务失败', 'error');
         }
@@ -166,22 +225,11 @@ async function loadTasks() {
 
         if (data.tasks.length === 0) {
             taskList.innerHTML = '<div class="empty-state">暂无任务</div>';
-            stopTaskRefresh();
             return;
         }
 
-        // 检查是否有运行中的任务
-        const hasRunningTask = data.tasks.some(task =>
-            task.status === 'running' || task.status === 'pending'
-        );
-
-        // 如果没有运行中的任务，停止自动刷新
-        if (!hasRunningTask) {
-            stopTaskRefresh();
-        }
-
         taskList.innerHTML = data.tasks.map(task => `
-            <div class="task-item">
+            <div class="task-item" data-task-id="${task.id}">
                 <div class="task-header">
                     <div class="task-username">@${task.username}</div>
                     <div class="task-status ${task.status}">${getStatusText(task.status)}</div>
@@ -196,33 +244,6 @@ async function loadTasks() {
         `).join('');
     } catch (error) {
         console.error('加载任务失败:', error);
-    }
-}
-
-function getStatusText(status) {
-    const statusMap = {
-        'pending': '等待中',
-        'running': '运行中',
-        'completed': '已完成',
-        'failed': '失败'
-    };
-    return statusMap[status] || status;
-}
-
-function startTaskRefresh() {
-    if (taskRefreshInterval) {
-        clearInterval(taskRefreshInterval);
-    }
-
-    taskRefreshInterval = setInterval(() => {
-        loadTasks();
-    }, 3000); // 3 秒刷新一次
-}
-
-function stopTaskRefresh() {
-    if (taskRefreshInterval) {
-        clearInterval(taskRefreshInterval);
-        taskRefreshInterval = null;
     }
 }
 
@@ -555,12 +576,7 @@ document.getElementById('image-modal').addEventListener('click', (e) => {
 // ─────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
+    initWebSocket();
     loadUsers();
     loadTasks();
-    startTaskRefresh();
-});
-
-// 页面卸载时停止刷新
-window.addEventListener('beforeunload', () => {
-    stopTaskRefresh();
 });

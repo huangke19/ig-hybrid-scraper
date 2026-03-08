@@ -107,7 +107,6 @@ document.getElementById('start-download-btn').addEventListener('click', async ()
     const customUsername = document.getElementById('custom-username').value.trim();
     const username = customUsername || selectedUsername;
     const downloadType = document.getElementById('download-type').value;
-    const enablePush = document.getElementById('enable-push').checked;
 
     if (!username && downloadType !== 'single') {
         showToast('请选择或输入用户名', 'error');
@@ -116,8 +115,7 @@ document.getElementById('start-download-btn').addEventListener('click', async ()
 
     const payload = {
         username,
-        type: downloadType,
-        enable_push: enablePush
+        type: downloadType
     };
 
     if (downloadType === 'latest') {
@@ -166,18 +164,7 @@ async function loadTasks() {
 
         if (data.tasks.length === 0) {
             taskList.innerHTML = '<div class="empty-state">暂无任务</div>';
-            stopTaskRefresh();
             return;
-        }
-
-        // 检查是否有运行中的任务
-        const hasRunningTask = data.tasks.some(task =>
-            task.status === 'running' || task.status === 'pending'
-        );
-
-        // 如果没有运行中的任务，停止自动刷新
-        if (!hasRunningTask) {
-            stopTaskRefresh();
         }
 
         taskList.innerHTML = data.tasks.map(task => `
@@ -216,7 +203,7 @@ function startTaskRefresh() {
 
     taskRefreshInterval = setInterval(() => {
         loadTasks();
-    }, 3000); // 3 秒刷新一次
+    }, 2000);
 }
 
 function stopTaskRefresh() {

@@ -75,6 +75,13 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="enable-push" checked>
+                        <span>推送到 Telegram</span>
+                    </label>
+                </div>
+
                 <button id="start-download-btn" class="btn btn-primary">开始下载</button>
             </div>
 
@@ -159,6 +166,7 @@
 
     <div id="toast" class="toast"></div>
 
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

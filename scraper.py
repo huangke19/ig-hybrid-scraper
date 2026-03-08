@@ -90,12 +90,12 @@ def fetch_post_urls_via_api(target_user: str, required_count: int) -> list[str]:
 
     urls = []
     for post in posts:
-        if len(urls) >= required_count:
-            break
         url = f"https://www.instagram.com/p/{post.shortcode}/"
         urls.append(url)
+        if len(urls) >= required_count:
+            break
 
-    return urls
+    return urls[:required_count]  # 确保只返回请求的数量
 
 
 def fetch_post_urls_via_selenium(target_user: str, required_count: int) -> list[str]:
@@ -136,6 +136,9 @@ def fetch_post_urls_via_selenium(target_user: str, required_count: int) -> list[
                 if ("/p/" in href or "/reel/" in href) and href not in seen:
                     seen.add(href)
                     post_urls.append(href)
+                    # 达到所需数量立即停止
+                    if len(post_urls) >= required_count:
+                        break
 
             if len(post_urls) >= required_count:
                 break
@@ -156,8 +159,10 @@ def fetch_post_urls_via_selenium(target_user: str, required_count: int) -> list[
     finally:
         driver.quit()
 
-    print(f"  🔗 共获取 {len(post_urls)} 条链接。")
-    return post_urls
+    # 确保只返回请求的数量
+    result = post_urls[:required_count]
+    print(f"  🔗 共获取 {len(result)} 条链接。")
+    return result
 
 
 def fetch_post_urls(target_user: str, required_count: int, use_cache: bool = True) -> list[str]:
@@ -331,16 +336,7 @@ def download_selected_posts(
         existing_files = existing_files_index.get(shortcode, [])
         if existing_files:
             print(f"  ⏭️  [{i}/{total}] 已存在，跳过下载: {shortcode}（{len(existing_files)} 个文件）")
-
-            # 如果启用了推送，仍然将已存在的文件加入推送列表
-            if push_mode != "none" and tg_config:
-                downloaded_items.append((existing_files, shortcode))
-
-                # 逐条推送模式：立即推送
-                if push_mode == "each":
-                    print(f"  📤 推送已存在文件: {shortcode}")
-                    _push_files(token, chat_id, existing_files, shortcode)
-
+            # 已存在的文件不推送
             continue
 
         print(f"  📥 [{i}/{total}] 下载中: {shortcode}")
