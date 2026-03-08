@@ -11,8 +11,6 @@ cd "$(dirname "$0")"
 
 PID_FILE="gunicorn.pid"
 LOG_FILE="web.log"
-BOT_PID_FILE="telegram_bot.pid"
-BOT_LOG_FILE="telegram_bot.log"
 
 if [ -d ".venv" ]; then
     source .venv/bin/activate
@@ -21,16 +19,6 @@ fi
 is_running() {
     if [ -f "$PID_FILE" ]; then
         pid=$(cat "$PID_FILE")
-        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-            return 0
-        fi
-    fi
-    return 1
-}
-
-is_bot_running() {
-    if [ -f "$BOT_PID_FILE" ]; then
-        pid=$(cat "$BOT_PID_FILE")
         if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
             return 0
         fi
@@ -58,19 +46,6 @@ start_server() {
         exit 1
     fi
 
-    if is_bot_running; then
-        echo "⚠️  Telegram Bot 已在运行（PID: $(cat "$BOT_PID_FILE")）"
-    else
-        echo "🤖 启动 Telegram Bot（后台）..."
-        nohup python telegram_command_bot.py > "$BOT_LOG_FILE" 2>&1 &
-        echo $! > "$BOT_PID_FILE"
-        sleep 1
-        if is_bot_running; then
-            echo "✅ Telegram Bot 启动成功（PID: $(cat "$BOT_PID_FILE")）"
-        else
-            echo "⚠️  Telegram Bot 启动失败，请查看日志：$BOT_LOG_FILE"
-        fi
-    fi
 }
 
 stop_server() {
@@ -99,17 +74,6 @@ stop_server() {
         echo "✅ Web UI 已停止"
     fi
 
-    if is_bot_running; then
-        pid=$(cat "$BOT_PID_FILE")
-        echo "🛑 正在停止 Telegram Bot（PID: $pid）..."
-        kill -TERM "$pid" 2>/dev/null || true
-        sleep 1
-        if kill -0 "$pid" 2>/dev/null; then
-            kill -KILL "$pid" 2>/dev/null || true
-        fi
-        rm -f "$BOT_PID_FILE"
-        echo "✅ Telegram Bot 已停止"
-    fi
 }
 
 case "$1" in
