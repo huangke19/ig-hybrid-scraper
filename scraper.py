@@ -108,7 +108,7 @@ def fetch_post_urls_via_selenium(target_user: str, required_count: int) -> list[
     else:
         SCROLL_PAUSE = (2.0, 3.5)
 
-    driver = init_driver(headless=False)
+    driver = init_driver()
     seen: set[str] = set()
     post_urls: list[str] = []
 
