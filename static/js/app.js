@@ -85,12 +85,26 @@ async function loadUsers() {
                 chip.classList.add('selected');
                 selectedUsername = chip.dataset.username;
                 document.getElementById('custom-username').value = '';
+                document.getElementById('custom-username').style.display = 'none';
             });
         });
     } catch (error) {
         showToast('加载用户列表失败', 'error');
     }
 }
+
+// 自定义用户名输入框事件
+document.getElementById('custom-username').addEventListener('input', (e) => {
+    if (e.target.value.trim()) {
+        document.querySelectorAll('.user-chip').forEach(c => c.classList.remove('selected'));
+        selectedUsername = '';
+    }
+});
+
+document.getElementById('custom-username').addEventListener('focus', () => {
+    document.querySelectorAll('.user-chip').forEach(c => c.classList.remove('selected'));
+    selectedUsername = '';
+});
 
 // 下载类型切换
 document.getElementById('download-type').addEventListener('change', (e) => {

@@ -33,6 +33,7 @@
                 <div class="form-group">
                     <label>下载类型</label>
                     <select id="download-type" class="input">
+                        <option value="">请选择下载类型</option>
                         <option value="index">下载第几条</option>
                         <option value="latest">下载前几条</option>
                         <option value="all">下载全部</option>
@@ -47,7 +48,7 @@
                     </div>
                 </div>
 
-                <div id="index-options" class="options-group">
+                <div id="index-options" class="options-group" style="display: none;">
                     <div class="form-group">
                         <label>帖子序号</label>
                         <input type="number" id="post-index" value="1" min="1" class="input">
