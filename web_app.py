@@ -8,6 +8,7 @@ from flask_socketio import SocketIO, emit
 from pathlib import Path
 import json
 import threading
+import logging
 from datetime import datetime
 
 from scraper import (
@@ -26,9 +27,18 @@ try:
 except ImportError:
     config = None
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ig-scraper-secret-key'
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+logger.info("Flask 应用启动")
 
 # 全局任务状态
 download_tasks = {}
@@ -51,6 +61,7 @@ def index():
 @app.route('/api/users', methods=['GET'])
 def get_users():
     """获取用户列表（常用 + 历史）"""
+    logger.info("请求用户列表")
     favorite_users = config.favorite_users if config else []
     downloaded_users = load_downloaded_users()
 
@@ -62,6 +73,7 @@ def get_users():
         if user not in favorite_users:
             users.append({'username': user, 'type': 'history'})
 
+    logger.info(f"返回 {len(users)} 个用户")
     return jsonify({'users': users})
 
 
@@ -76,7 +88,7 @@ def start_download():
 
     data = request.json
     username = data.get('username', '').strip()
-    download_type = data.get('type', 'latest')  # latest, range, position, single
+    download_type = data.get('type', 'latest')
     count = data.get('count', 10)
     start_pos = data.get('start', 1)
     end_pos = data.get('end', 10)
@@ -84,7 +96,10 @@ def start_download():
     url = data.get('url', '')
     enable_push = data.get('enable_push', True)
 
+    logger.info(f"收到下载请求: username={username}, type={download_type}, count={count}")
+
     if not username and download_type != 'single':
+        logger.warning("下载请求失败: 用户名为空")
         return jsonify({'error': '用户名不能为空'}), 400
 
     # 创建任务
@@ -101,6 +116,8 @@ def start_download():
         'created_at': datetime.now().isoformat(),
     }
 
+    logger.info(f"创建下载任务: {task_id}")
+
     # 后台执行下载
     thread = threading.Thread(
         target=_execute_download,
@@ -115,18 +132,12 @@ def start_download():
 def _execute_download(task_id, username, download_type, count, start_pos, end_pos, position, url, enable_push):
     """执行下载任务（后台线程）"""
     try:
+        logger.info(f"[{task_id}] 开始执行下载任务")
         download_tasks[task_id]['status'] = 'running'
         download_tasks[task_id]['message'] = '正在获取帖子链接...'
         socketio.emit('task_update', download_tasks[task_id])
 
-        # 调试日志
-        print(f"\n[DEBUG] 下载参数:")
-        print(f"  username: {username}")
-        print(f"  download_type: {download_type}")
-        print(f"  count: {count}")
-        print(f"  start_pos: {start_pos}, end_pos: {end_pos}")
-        print(f"  position: {position}")
-        print(f"  enable_push: {enable_push}")
+        logger.info(f"[{task_id}] 下载参数: username={username}, type={download_type}, count={count}, range={start_pos}-{end_pos}, position={position}")
 
         # 获取链接
         if download_type == 'single':
@@ -147,8 +158,7 @@ def _execute_download(task_id, username, download_type, count, start_pos, end_po
         else:  # latest
             urls = fetch_post_urls(username, count)
 
-        print(f"[DEBUG] 获取到 {len(urls)} 条链接")
-        print(f"[DEBUG] URLs: {urls[:3]}...")  # 只打印前3条
+        logger.info(f"[{task_id}] 获取到 {len(urls)} 条链接")
 
         download_tasks[task_id]['total'] = len(urls)
         download_tasks[task_id]['message'] = f'开始下载 {len(urls)} 个帖子...'
@@ -190,8 +200,10 @@ def _execute_download(task_id, username, download_type, count, start_pos, end_po
         download_tasks[task_id]['progress'] = len(urls)
         download_tasks[task_id]['message'] = '下载完成！'
         socketio.emit('task_update', download_tasks[task_id])
+        logger.info(f"[{task_id}] 下载任务完成")
 
     except Exception as e:
+        logger.error(f"[{task_id}] 下载任务失败: {str(e)}", exc_info=True)
         download_tasks[task_id]['status'] = 'failed'
         download_tasks[task_id]['message'] = f'下载失败: {str(e)}'
         socketio.emit('task_update', download_tasks[task_id])
@@ -242,11 +254,15 @@ def manual_check():
     data = request.json
     username = data.get('username', '').strip()
 
+    logger.info(f"手动检查新帖子: username={username}")
+
     if not username:
+        logger.warning("检查失败: 用户名为空")
         return jsonify({'error': '用户名不能为空'}), 400
 
     try:
         new_count, latest_shortcode = check_new_posts(username)
+        logger.info(f"检查完成: username={username}, new_count={new_count}")
         return jsonify({
             'username': username,
             'new_count': new_count,
@@ -254,6 +270,7 @@ def manual_check():
             'message': f'检查完成，发现 {new_count} 条新帖子' if new_count > 0 else '没有新帖子'
         })
     except Exception as e:
+        logger.error(f"检查失败: username={username}, error={str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -282,14 +299,19 @@ def save_telegram_config():
     token = data.get('token', '').strip()
     chat_id = data.get('chat_id', '').strip()
 
+    logger.info("保存 Telegram 配置")
+
     if not token or not chat_id:
+        logger.warning("配置保存失败: Token 或 Chat ID 为空")
         return jsonify({'error': 'Token 和 Chat ID 不能为空'}), 400
 
     # 测试配置
     if send_message(token, chat_id, '✅ IG 爬虫 Web UI - Telegram 配置测试成功！'):
         save_tg_config(token, chat_id)
+        logger.info("Telegram 配置保存成功")
         return jsonify({'message': '配置保存成功，测试消息已发送'})
     else:
+        logger.error("Telegram 配置测试失败")
         return jsonify({'error': '配置测试失败，请检查 Token 和 Chat ID'}), 400
 
 
