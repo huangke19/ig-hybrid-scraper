@@ -227,16 +227,15 @@ favorite_users:
 - 程序内置随机延时模拟真人行为，请勿同时开多个进程
 - `cookies.pkl` 和 `tg_config.json` 包含敏感信息，已加入 `.gitignore`
 
-## .gitignore 建议
+## 项目维护
 
-```
-cookies.pkl
-tg_config.json
-config.yaml
-downloaded_users.json
-urls_cache.json
-.cache/
-downloads/
-.venv/
-__pycache__/
-```
+### Git 配置
+
+项目已配置 `.gitignore`，自动忽略以下文件：
+
+- 敏感信息：`cookies.pkl`、`tg_config.json`、`config.yaml`
+- 下载数据：`downloads/`、`.cache/`
+- 运行时文件：`*.log`、`*.pid`、`*.backup`
+- Python 缓存：`.venv/`、`__pycache__/`、`*.pyc`、`*.pyo`
+- 历史记录：`downloaded_users.json`、`urls_cache.json`、`monitor_history.json`
+- 系统文件：`.DS_Store`
