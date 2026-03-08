@@ -50,6 +50,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
             loadTasks();
         } else if (tabName === 'config') {
             loadTelegramConfig();
+            loadBotStatus();
         } else if (tabName === 'files') {
             loadFiles();
         }
@@ -280,6 +281,34 @@ async function loadTelegramConfig() {
     }
 }
 
+async function loadBotStatus() {
+    try {
+        const response = await fetch('/api/bot/status');
+        const data = await response.json();
+
+        const statusBox = document.getElementById('bot-status');
+        const startBtn = document.getElementById('start-bot-btn');
+        const stopBtn = document.getElementById('stop-bot-btn');
+        const restartBtn = document.getElementById('restart-bot-btn');
+
+        if (data.running) {
+            statusBox.className = 'status-box success';
+            statusBox.innerHTML = `✅ Bot 运行中<br><small>PID: ${data.pid}</small>`;
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'inline-block';
+            restartBtn.style.display = 'inline-block';
+        } else {
+            statusBox.className = 'status-box warning';
+            statusBox.innerHTML = '⚠️ Bot 未运行';
+            startBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+            restartBtn.style.display = 'none';
+        }
+    } catch (error) {
+        showToast('加载 Bot 状态失败', 'error');
+    }
+}
+
 document.getElementById('save-telegram-btn').addEventListener('click', async () => {
     const token = document.getElementById('tg-token').value.trim();
     const chatId = document.getElementById('tg-chat-id').value.trim();
@@ -305,6 +334,65 @@ document.getElementById('save-telegram-btn').addEventListener('click', async () 
             document.getElementById('tg-chat-id').value = '';
         } else {
             showToast(data.error || '保存失败', 'error');
+        }
+    } catch (error) {
+        showToast('网络错误', 'error');
+    }
+});
+
+document.getElementById('start-bot-btn').addEventListener('click', async () => {
+    try {
+        const response = await fetch('/api/bot/start', { method: 'POST' });
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message);
+            setTimeout(loadBotStatus, 1000);
+        } else {
+            showToast(data.error || '启动失败', 'error');
+        }
+    } catch (error) {
+        showToast('网络错误', 'error');
+    }
+});
+
+document.getElementById('stop-bot-btn').addEventListener('click', async () => {
+    try {
+        const response = await fetch('/api/bot/stop', { method: 'POST' });
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(data.message);
+            setTimeout(loadBotStatus, 500);
+        } else {
+            showToast(data.error || '停止失败', 'error');
+        }
+    } catch (error) {
+        showToast('网络错误', 'error');
+    }
+});
+
+document.getElementById('restart-bot-btn').addEventListener('click', async () => {
+    try {
+        showToast('正在重启 Bot...', 'info');
+
+        const stopResponse = await fetch('/api/bot/stop', { method: 'POST' });
+        if (!stopResponse.ok) {
+            const data = await stopResponse.json();
+            showToast(data.error || '停止失败', 'error');
+            return;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        const startResponse = await fetch('/api/bot/start', { method: 'POST' });
+        const data = await startResponse.json();
+
+        if (startResponse.ok) {
+            showToast('Bot 重启成功');
+            setTimeout(loadBotStatus, 1000);
+        } else {
+            showToast(data.error || '启动失败', 'error');
         }
     } catch (error) {
         showToast('网络错误', 'error');

@@ -9,6 +9,8 @@ from pathlib import Path
 import json
 import threading
 import logging
+import subprocess
+import signal
 from datetime import datetime
 
 from scraper import (
@@ -266,6 +268,74 @@ def save_telegram_config():
     else:
         logger.error("Telegram 配置测试失败")
         return jsonify({'error': '配置测试失败，请检查 Token 和 Chat ID'}), 400
+
+
+@app.route('/api/bot/status', methods=['GET'])
+def get_bot_status():
+    """获取 Bot 运行状态"""
+    try:
+        result = subprocess.run(['pgrep', '-f', 'telegram_command_bot.py'],
+                              capture_output=True, text=True)
+        running = bool(result.stdout.strip())
+        pid = result.stdout.strip() if running else None
+        return jsonify({'running': running, 'pid': pid})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bot/start', methods=['POST'])
+def start_bot():
+    """启动 Bot"""
+    try:
+        result = subprocess.run(['pgrep', '-f', 'telegram_command_bot.py'],
+                              capture_output=True, text=True)
+        if result.stdout.strip():
+            return jsonify({'error': 'Bot 已在运行中'}), 400
+
+        import os
+        script_path = os.path.join(os.path.dirname(__file__), 'telegram_command_bot.py')
+        process = subprocess.Popen(['python', '-u', script_path],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True,
+                        cwd=os.path.dirname(__file__))
+
+        pid_file = os.path.join(os.path.dirname(__file__), 'telegram_bot.pid')
+        with open(pid_file, 'w') as f:
+            f.write(str(process.pid))
+
+        logger.info(f"Bot 启动成功 (PID: {process.pid})")
+        return jsonify({'message': 'Bot 启动成功'})
+    except Exception as e:
+        logger.error(f"Bot 启动失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bot/stop', methods=['POST'])
+def stop_bot():
+    """停止 Bot"""
+    try:
+        result = subprocess.run(['pgrep', '-f', 'telegram_command_bot.py'],
+                              capture_output=True, text=True)
+        pids = result.stdout.strip().split('\n')
+        pids = [p for p in pids if p]
+
+        if not pids:
+            return jsonify({'error': 'Bot 未运行'}), 400
+
+        import os
+        for pid in pids:
+            subprocess.run(['kill', pid])
+
+        pid_file = os.path.join(os.path.dirname(__file__), 'telegram_bot.pid')
+        if os.path.exists(pid_file):
+            os.remove(pid_file)
+
+        logger.info(f"Bot 已停止 (PID: {', '.join(pids)})")
+        return jsonify({'message': 'Bot 已停止'})
+    except Exception as e:
+        logger.error(f"Bot 停止失败: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 # ─────────────────────────────────────────────
