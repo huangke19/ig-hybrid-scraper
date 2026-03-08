@@ -1,6 +1,8 @@
 # 忽略虚拟环境
 .venv/
 __pycache__/
+*.pyc
+*.pyo
 
 # 忽略下载的图片数据
 downloads/
@@ -22,9 +24,6 @@ downloaded_users.json
 urls_cache.json
 # 忽略监控历史和日志
 monitor_history.json
-monitor.log
-monitor.error.log
-
-
-#忽略web日志
-web.log
+*.log
+*.pid
+*.backup
