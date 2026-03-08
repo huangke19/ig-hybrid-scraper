@@ -13,8 +13,6 @@ PID_FILE="gunicorn.pid"
 LOG_FILE="web.log"
 BOT_PID_FILE="telegram_bot.pid"
 BOT_LOG_FILE="telegram_bot.log"
-MONITOR_PID_FILE="monitor.pid"
-MONITOR_LOG_FILE="monitor.log"
 
 if [ -d ".venv" ]; then
     source .venv/bin/activate
@@ -33,16 +31,6 @@ is_running() {
 is_bot_running() {
     if [ -f "$BOT_PID_FILE" ]; then
         pid=$(cat "$BOT_PID_FILE")
-        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-            return 0
-        fi
-    fi
-    return 1
-}
-
-is_monitor_running() {
-    if [ -f "$MONITOR_PID_FILE" ]; then
-        pid=$(cat "$MONITOR_PID_FILE")
         if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
             return 0
         fi
@@ -83,20 +71,6 @@ start_server() {
             echo "⚠️  Telegram Bot 启动失败，请查看日志：$BOT_LOG_FILE"
         fi
     fi
-
-    if is_monitor_running; then
-        echo "⚠️  监控服务已在运行（PID: $(cat "$MONITOR_PID_FILE")）"
-    else
-        echo "📡 启动监控服务（后台）..."
-        nohup python monitor.py > "$MONITOR_LOG_FILE" 2>&1 &
-        echo $! > "$MONITOR_PID_FILE"
-        sleep 1
-        if is_monitor_running; then
-            echo "✅ 监控服务启动成功（PID: $(cat "$MONITOR_PID_FILE")）"
-        else
-            echo "⚠️  监控服务启动失败，请查看日志：$MONITOR_LOG_FILE"
-        fi
-    fi
 }
 
 stop_server() {
@@ -135,18 +109,6 @@ stop_server() {
         fi
         rm -f "$BOT_PID_FILE"
         echo "✅ Telegram Bot 已停止"
-    fi
-
-    if is_monitor_running; then
-        pid=$(cat "$MONITOR_PID_FILE")
-        echo "🛑 正在停止监控服务（PID: $pid）..."
-        kill -TERM "$pid" 2>/dev/null || true
-        sleep 1
-        if kill -0 "$pid" 2>/dev/null; then
-            kill -KILL "$pid" 2>/dev/null || true
-        fi
-        rm -f "$MONITOR_PID_FILE"
-        echo "✅ 监控服务已停止"
     fi
 }
 

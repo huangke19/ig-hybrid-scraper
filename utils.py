@@ -116,8 +116,13 @@ def load_cookies_for_selenium(driver: webdriver.Chrome, path: str = COOKIE_PATH)
         print(f"⚠️  Cookie 文件 {path} 不存在，跳过注入。")
         return False
 
-    with open(path, "rb") as f:
-        cookies = pickle.load(f)
+    try:
+        with open(path, "rb") as f:
+            cookies = pickle.load(f)
+    except Exception as e:
+        print(f"⚠️  Cookie 文件 {path} 加载失败: {e}")
+        print(f"   请重新运行 python auth.py 登录")
+        return False
 
     if not cookies:
         print(f"⚠️  Cookie 文件 {path} 为空或无效，请重新运行 auth.py 登录。")
@@ -143,8 +148,13 @@ def load_cookies_for_requests(path: str = COOKIE_PATH) -> RequestsCookieJar:
         print(f"⚠️  Cookie 文件 {path} 不存在，返回空 jar。")
         return jar
 
-    with open(path, "rb") as f:
-        cookies = pickle.load(f)
+    try:
+        with open(path, "rb") as f:
+            cookies = pickle.load(f)
+    except Exception as e:
+        print(f"⚠️  Cookie 文件 {path} 加载失败: {e}")
+        print(f"   请重新运行 python auth.py 登录")
+        return jar
 
     if not cookies:
         print(f"⚠️  Cookie 文件 {path} 为空或无效，请重新运行 auth.py 登录。")

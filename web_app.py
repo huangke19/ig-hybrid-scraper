@@ -17,7 +17,6 @@ from scraper import (
     load_downloaded_users,
     save_downloaded_user,
 )
-from monitor import check_new_posts, load_monitor_history
 from telegram_bot import load_tg_config, save_tg_config, send_message
 from utils import get_shortcode_from_url
 
@@ -90,9 +89,6 @@ def start_download():
     username = data.get('username', '').strip()
     download_type = data.get('type', 'latest')
     count = data.get('count', 10)
-    start_pos = data.get('start', 1)
-    end_pos = data.get('end', 10)
-    position = data.get('position', 1)
     url = data.get('url', '')
     enable_push = data.get('enable_push', True)
 
@@ -121,7 +117,7 @@ def start_download():
     # 后台执行下载
     thread = threading.Thread(
         target=_execute_download,
-        args=(task_id, username, download_type, count, start_pos, end_pos, position, url, enable_push)
+        args=(task_id, username, download_type, count, url, enable_push)
     )
     thread.daemon = True
     thread.start()
@@ -129,7 +125,7 @@ def start_download():
     return jsonify({'task_id': task_id, 'message': '任务已创建'})
 
 
-def _execute_download(task_id, username, download_type, count, start_pos, end_pos, position, url, enable_push):
+def _execute_download(task_id, username, download_type, count, url, enable_push):
     """执行下载任务（后台线程）"""
     try:
         logger.info(f"[{task_id}] 开始执行下载任务")
@@ -137,24 +133,31 @@ def _execute_download(task_id, username, download_type, count, start_pos, end_po
         download_tasks[task_id]['message'] = '正在获取帖子链接...'
         socketio.emit('task_update', download_tasks[task_id])
 
-        logger.info(f"[{task_id}] 下载参数: username={username}, type={download_type}, count={count}, range={start_pos}-{end_pos}, position={position}")
+        logger.info(f"[{task_id}] 下载参数: username={username}, type={download_type}, count={count}, url={url}")
 
         # 获取链接
         if download_type == 'single':
+            # 支持三种格式：完整URL、shortcode、或"用户名 序号"
             if url.startswith('http'):
                 urls = [url]
+                username = get_shortcode_from_url(urls[0]) or 'single_post'
+            elif ' ' in url:
+                # 格式：username position
+                parts = url.split()
+                if len(parts) == 2 and parts[1].isdigit():
+                    username = parts[0]
+                    position = int(parts[1])
+                    all_urls = fetch_post_urls(username, position)
+                    if position <= len(all_urls):
+                        urls = [all_urls[position - 1]]
+                    else:
+                        raise Exception(f'该账号只有 {len(all_urls)} 条帖子')
+                else:
+                    raise Exception('格式错误，应为：用户名 序号')
             else:
+                # shortcode
                 urls = [f"https://www.instagram.com/p/{url}/"]
-            username = get_shortcode_from_url(urls[0]) or 'single_post'
-        elif download_type == 'range':
-            all_urls = fetch_post_urls(username, end_pos)
-            urls = all_urls[start_pos - 1:end_pos]
-        elif download_type == 'position':
-            all_urls = fetch_post_urls(username, position)
-            if position <= len(all_urls):
-                urls = [all_urls[position - 1]]
-            else:
-                raise Exception(f'该账号只有 {len(all_urls)} 条帖子')
+                username = get_shortcode_from_url(urls[0]) or 'single_post'
         else:  # latest
             urls = fetch_post_urls(username, count)
 
@@ -224,54 +227,6 @@ def get_task(task_id):
     if not task:
         return jsonify({'error': '任务不存在'}), 404
     return jsonify(task)
-
-
-# ─────────────────────────────────────────────
-# 监控 API
-# ─────────────────────────────────────────────
-
-@app.route('/api/monitor/status', methods=['GET'])
-def get_monitor_status():
-    """获取监控状态"""
-    history = load_monitor_history()
-    favorite_users = config.favorite_users if config else []
-
-    users_status = []
-    for username in favorite_users:
-        user_data = history.get(username, {})
-        users_status.append({
-            'username': username,
-            'last_check': user_data.get('last_check_time', '从未检查'),
-            'last_shortcode': user_data.get('last_shortcode', '-'),
-        })
-
-    return jsonify({'users': users_status})
-
-
-@app.route('/api/monitor/check', methods=['POST'])
-def manual_check():
-    """手动触发监控检查"""
-    data = request.json
-    username = data.get('username', '').strip()
-
-    logger.info(f"手动检查新帖子: username={username}")
-
-    if not username:
-        logger.warning("检查失败: 用户名为空")
-        return jsonify({'error': '用户名不能为空'}), 400
-
-    try:
-        new_count, latest_shortcode = check_new_posts(username)
-        logger.info(f"检查完成: username={username}, new_count={new_count}")
-        return jsonify({
-            'username': username,
-            'new_count': new_count,
-            'latest_shortcode': latest_shortcode,
-            'message': f'检查完成，发现 {new_count} 条新帖子' if new_count > 0 else '没有新帖子'
-        })
-    except Exception as e:
-        logger.error(f"检查失败: username={username}, error={str(e)}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
 
 
 # ─────────────────────────────────────────────

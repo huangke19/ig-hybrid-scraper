@@ -12,7 +12,6 @@
             <h1>📸 IG 爬虫管理面板</h1>
             <nav>
                 <button class="tab-btn active" data-tab="download">下载管理</button>
-                <button class="tab-btn" data-tab="monitor">监控管理</button>
                 <button class="tab-btn" data-tab="config">配置</button>
                 <button class="tab-btn" data-tab="files">文件浏览</button>
             </nav>
@@ -35,9 +34,7 @@
                     <label>下载类型</label>
                     <select id="download-type" class="input">
                         <option value="latest">最新 N 条帖子</option>
-                        <option value="range">指定范围（第 M ~ N 条）</option>
-                        <option value="position">指定第几条帖子</option>
-                        <option value="single">单条帖子（URL/shortcode）</option>
+                        <option value="single">单条帖子（URL/shortcode/用户名 序号）</option>
                     </select>
                 </div>
 
@@ -48,30 +45,11 @@
                     </div>
                 </div>
 
-                <div id="range-options" class="options-group" style="display: none;">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>起始位置</label>
-                            <input type="number" id="start-pos" value="1" min="1" class="input">
-                        </div>
-                        <div class="form-group">
-                            <label>结束位置</label>
-                            <input type="number" id="end-pos" value="10" min="1" class="input">
-                        </div>
-                    </div>
-                </div>
-
-                <div id="position-options" class="options-group" style="display: none;">
-                    <div class="form-group">
-                        <label>帖子位置（从 1 开始）</label>
-                        <input type="number" id="post-position" value="1" min="1" class="input">
-                    </div>
-                </div>
-
                 <div id="single-options" class="options-group" style="display: none;">
                     <div class="form-group">
-                        <label>帖子 URL 或 shortcode</label>
-                        <input type="text" id="post-url" placeholder="https://www.instagram.com/p/..." class="input">
+                        <label>帖子 URL / shortcode / 用户名 序号</label>
+                        <input type="text" id="post-url" placeholder="https://www.instagram.com/p/... 或 shortcode 或 username 3" class="input">
+                        <small>支持三种格式：完整URL、shortcode、或"用户名 序号"（如：nike 5）</small>
                     </div>
                 </div>
 
@@ -96,17 +74,6 @@
                 <h3 style="margin-bottom: 10px;">全部任务</h3>
                 <div id="task-list">
                     <div class="empty-state">暂无任务</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 监控管理 -->
-        <div id="monitor-tab" class="tab-content">
-            <div class="panel">
-                <h2>监控状态</h2>
-                <p class="hint">监控功能会自动检测常用用户的新帖子并推送通知</p>
-                <div id="monitor-list">
-                    <div class="loading">加载中...</div>
                 </div>
             </div>
         </div>

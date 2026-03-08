@@ -4,7 +4,6 @@ Telegram 命令 Bot - 接收远程下载指令
   直接发送 IG 链接 - 下载帖子
   账号名 帖子序号 - 下载指定账号的第N条帖子（例如：username 3）
   /status - 查看运行状态
-  /monitor - 立即检查新帖子
 """
 
 import time
@@ -12,7 +11,6 @@ import re
 import requests
 from telegram_bot import load_tg_config, send_message
 from scraper import download_selected_posts, fetch_post_urls_via_selenium
-from monitor import monitor_once
 
 
 def get_updates(token: str, offset: int = 0, timeout: int = 30):
@@ -35,14 +33,6 @@ def handle_command(token: str, chat_id: str, text: str):
         send_message(token, chat_id, "✅ Bot 运行中")
         return
 
-    if text == "/monitor":
-        send_message(token, chat_id, "🔍 开始检查新帖子...")
-        try:
-            monitor_once()
-        except Exception as e:
-            send_message(token, chat_id, f"❌ 检查失败: {str(e)}")
-        return
-
     # 检测是否是 IG 链接（支持多种格式）
     ig_pattern = r'(?:https?://)?(?:www\.)?instagram\.com/(?:p|reel)/[\w-]+'
     match = re.search(ig_pattern, text)
@@ -52,8 +42,6 @@ def handle_command(token: str, chat_id: str, text: str):
         if not url.startswith('http'):
             url = 'https://' + url
 
-        send_message(token, chat_id, f"🚀 开始下载")
-
         try:
             download_selected_posts(
                 urls=[url],
@@ -61,7 +49,6 @@ def handle_command(token: str, chat_id: str, text: str):
                 tg_config=(token, chat_id),
                 push_mode="each"
             )
-            send_message(token, chat_id, f"✅ 下载完成")
         except Exception as e:
             send_message(token, chat_id, f"❌ 下载失败: {str(e)}")
         return
@@ -85,7 +72,6 @@ def handle_command(token: str, chat_id: str, text: str):
                 return
 
             target_url = urls[post_index - 1]
-            send_message(token, chat_id, f"🚀 开始下载")
 
             download_selected_posts(
                 urls=[target_url],
@@ -93,7 +79,6 @@ def handle_command(token: str, chat_id: str, text: str):
                 tg_config=(token, chat_id),
                 push_mode="each"
             )
-            send_message(token, chat_id, f"✅ 下载完成")
         except Exception as e:
             send_message(token, chat_id, f"❌ 下载失败: {str(e)}")
         return
@@ -103,8 +88,7 @@ def handle_command(token: str, chat_id: str, text: str):
             "可用命令:\n"
             "• 直接发送 IG 链接下载\n"
             "• 账号名 帖子序号（例如：username 3）\n"
-            "/status - 查看状态\n"
-            "/monitor - 检查新帖子"
+            "/status - 查看状态"
         )
 
 
@@ -119,7 +103,6 @@ def run_bot():
     print(f"🤖 Telegram Bot 启动中...")
     print(f"📱 Chat ID: {chat_id}")
     print(f"💡 直接发送 IG 链接即可下载")
-    print(f"💡 发送 /monitor 检查新帖子")
 
     offset = 0
 
@@ -130,9 +113,14 @@ def run_bot():
                 time.sleep(3)
                 continue
 
-            for update in result.get("result", []):
-                offset = update["update_id"] + 1
+            updates = result.get("result", [])
+            if not updates:
+                continue
 
+            # 先更新 offset，避免重复处理
+            offset = updates[-1]["update_id"] + 1
+
+            for update in updates:
                 message = update.get("message", {})
                 msg_chat_id = str(message.get("chat", {}).get("id", ""))
                 msg_text = message.get("text", "")

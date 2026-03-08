@@ -48,8 +48,6 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         if (tabName === 'download') {
             loadUsers();
             loadTasks();
-        } else if (tabName === 'monitor') {
-            loadMonitorStatus();
         } else if (tabName === 'config') {
             loadTelegramConfig();
         } else if (tabName === 'files') {
@@ -99,8 +97,6 @@ document.getElementById('download-type').addEventListener('change', (e) => {
     const type = e.target.value;
 
     document.getElementById('latest-options').style.display = type === 'latest' ? 'block' : 'none';
-    document.getElementById('range-options').style.display = type === 'range' ? 'block' : 'none';
-    document.getElementById('position-options').style.display = type === 'position' ? 'block' : 'none';
     document.getElementById('single-options').style.display = type === 'single' ? 'block' : 'none';
 });
 
@@ -124,15 +120,10 @@ document.getElementById('start-download-btn').addEventListener('click', async ()
 
     if (downloadType === 'latest') {
         payload.count = parseInt(document.getElementById('post-count').value);
-    } else if (downloadType === 'range') {
-        payload.start = parseInt(document.getElementById('start-pos').value);
-        payload.end = parseInt(document.getElementById('end-pos').value);
-    } else if (downloadType === 'position') {
-        payload.position = parseInt(document.getElementById('post-position').value);
     } else if (downloadType === 'single') {
         payload.url = document.getElementById('post-url').value.trim();
         if (!payload.url) {
-            showToast('请输入帖子 URL 或 shortcode', 'error');
+            showToast('请输入帖子 URL、shortcode 或用户名 序号', 'error');
             return;
         }
     }
@@ -242,60 +233,6 @@ function stopTaskRefresh() {
     if (taskRefreshInterval) {
         clearInterval(taskRefreshInterval);
         taskRefreshInterval = null;
-    }
-}
-
-// ─────────────────────────────────────────────
-// 监控管理
-// ─────────────────────────────────────────────
-
-async function loadMonitorStatus() {
-    try {
-        const response = await fetch('/api/monitor/status');
-        const data = await response.json();
-
-        const monitorList = document.getElementById('monitor-list');
-
-        if (data.users.length === 0) {
-            monitorList.innerHTML = '<div class="empty-state">请在 config.yaml 中配置 favorite_users</div>';
-            return;
-        }
-
-        monitorList.innerHTML = data.users.map(user => `
-            <div class="monitor-item">
-                <div class="monitor-info">
-                    <div class="monitor-username">@${user.username}</div>
-                    <div class="monitor-meta">
-                        最后检查: ${user.last_check} | 最新帖子: ${user.last_shortcode}
-                    </div>
-                </div>
-                <button class="btn btn-secondary" onclick="checkUser('${user.username}')">立即检查</button>
-            </div>
-        `).join('');
-    } catch (error) {
-        showToast('加载监控状态失败', 'error');
-    }
-}
-
-async function checkUser(username) {
-    try {
-        showToast('正在检查...');
-        const response = await fetch('/api/monitor/check', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username })
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            showToast(data.message);
-            loadMonitorStatus();
-        } else {
-            showToast(data.error || '检查失败', 'error');
-        }
-    } catch (error) {
-        showToast('网络错误', 'error');
     }
 }
 
