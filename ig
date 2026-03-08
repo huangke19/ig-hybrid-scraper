@@ -52,13 +52,14 @@ start_bot() {
         return 0
     fi
 
-    echo "🤖 启动 Telegram Bot（后台）..."
-    nohup python -u telegram_command_bot.py > "$BOT_LOG_FILE" 2>&1 &
+    echo "🤖 启动 Telegram Bot（后台，防休眠）..."
+    nohup caffeinate -s python -u telegram_command_bot.py > "$BOT_LOG_FILE" 2>&1 &
     echo $! > "$BOT_PID_FILE"
     sleep 1
 
     if is_bot_running; then
         echo "✅ Telegram Bot 启动成功（PID: $(cat "$BOT_PID_FILE")）"
+        echo "💡 系统将保持唤醒状态，直到 Bot 停止"
     else
         echo "❌ 启动失败，请查看日志：$BOT_LOG_FILE"
         exit 1
