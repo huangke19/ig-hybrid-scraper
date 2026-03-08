@@ -221,7 +221,7 @@ async def _execute_download(task_id, username, download_type, count, index, url,
                 shortcode = get_shortcode_from_url(urls[0])
                 username = shortcode if shortcode else url[:20]
         elif download_type == 'index':
-            all_urls = fetch_post_urls(username, 9999)
+            all_urls = fetch_post_urls(username, index)
             if index <= len(all_urls):
                 urls = [all_urls[index - 1]]
             else:
