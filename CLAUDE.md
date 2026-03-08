@@ -6,7 +6,6 @@ Instagram 下载器：使用 Selenium + Instaloader 下载 IG 帖子，支持 We
 ## 核心文件（优先阅读）
 - `scraper.py` - 主下载逻辑
 - `web_app.py` - Flask Web UI
-- `monitor.py` - 新帖子监控
 - `utils.py` - 浏览器/Cookie/重试工具
 - `telegram_bot.py` - TG 推送
 - `config.py` - 配置管理
@@ -51,11 +50,6 @@ grep -n "def download" scraper.py  # 定位函数
 ### 修改 Web UI
 - 前端：`templates/index.html`、`static/js/app.js`
 - 后端：`web_app.py` 中的路由函数
-
-### 修改监控逻辑
-```bash
-grep -n "check_new_posts" monitor.py
-```
 
 ### 修改配置
 - 用户配置：`config.yaml`（用户自定义）

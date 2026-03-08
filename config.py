@@ -45,7 +45,6 @@ class Config:
         """返回默认配置"""
         return {
             'favorite_users': [],
-            'monitor_users': [],
             'browser': {
                 'headless': False,
                 'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -158,11 +157,6 @@ class Config:
     def favorite_users(self) -> list[str]:
         """获取常用用户列表"""
         return self._data.get('favorite_users', [])
-
-    @property
-    def monitor_users(self) -> list[str]:
-        """获取监控用户列表"""
-        return self._data.get('monitor_users', [])
 
 
 def create_example_config(output_path: str = "config.yaml.example") -> None:

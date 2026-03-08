@@ -5,7 +5,6 @@
 #   ./ig web          启动 Web UI（后台）
 #   ./ig web stop     停止 Web UI
 #   ./ig web restart  重启 Web UI
-#   ./ig monitor      运行监控服务（前台）
 #   ./ig bot          启动 Telegram Bot（后台）
 #   ./ig bot stop     停止 Telegram Bot
 #   ./ig bot restart  重启 Telegram Bot
@@ -93,9 +92,6 @@ case "$1" in
     web)
         ./web "$2"
         ;;
-    monitor)
-        python3 monitor.py
-        ;;
     bot)
         case "$2" in
             stop)
@@ -121,7 +117,6 @@ case "$1" in
         echo "  ig web              启动 Web UI（后台）"
         echo "  ig web stop         停止 Web UI"
         echo "  ig web restart      重启 Web UI"
-        echo "  ig monitor          运行监控服务（前台）"
         echo "  ig bot              启动 Telegram Bot（后台）"
         echo "  ig bot stop         停止 Telegram Bot"
         echo "  ig bot restart      重启 Telegram Bot"
