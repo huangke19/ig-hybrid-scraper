@@ -24,3 +24,7 @@ urls_cache.json
 monitor_history.json
 monitor.log
 monitor.error.log
+
+
+#忽略web日志
+web.log
