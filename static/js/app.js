@@ -5,7 +5,6 @@
 let selectedUsername = '';
 let taskRefreshInterval = null;
 let taskCache = [];
-const socket = io();
 
 // ─────────────────────────────────────────────
 // 工具函数
@@ -630,33 +629,7 @@ document.getElementById('image-modal').addEventListener('click', (e) => {
 document.addEventListener('DOMContentLoaded', () => {
     loadUsers();
     loadTasks();
-
-    // Socket.IO 不稳定时，自动退回轮询兜底
     startTaskRefresh();
-
-    socket.on('connect', () => {
-        stopTaskRefresh();
-        loadTasks();
-    });
-
-    socket.on('disconnect', () => {
-        startTaskRefresh();
-    });
-
-    socket.on('connect_error', () => {
-        startTaskRefresh();
-    });
-
-    socket.on('task_update', (task) => {
-        const idx = taskCache.findIndex(t => t.id === task.id);
-        if (idx >= 0) {
-            taskCache[idx] = task;
-        } else {
-            taskCache.unshift(task);
-        }
-        taskCache.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        renderTasks(taskCache);
-    });
 });
 
 // 页面卸载时停止刷新
