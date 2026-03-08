@@ -89,10 +89,11 @@ def start_download():
     username = data.get('username', '').strip()
     download_type = data.get('type', 'latest')
     count = data.get('count', 10)
+    index = data.get('index', 1)
     url = data.get('url', '')
     enable_push = data.get('enable_push', True)
 
-    logger.info(f"收到下载请求: username={username}, type={download_type}, count={count}")
+    logger.info(f"收到下载请求: username={username}, type={download_type}, count={count}, index={index}")
 
     if not username and download_type != 'single':
         logger.warning("下载请求失败: 用户名为空")
@@ -117,7 +118,7 @@ def start_download():
     # 后台执行下载
     thread = threading.Thread(
         target=_execute_download,
-        args=(task_id, username, download_type, count, url, enable_push)
+        args=(task_id, username, download_type, count, index, url, enable_push)
     )
     thread.daemon = True
     thread.start()
@@ -125,7 +126,7 @@ def start_download():
     return jsonify({'task_id': task_id, 'message': '任务已创建'})
 
 
-def _execute_download(task_id, username, download_type, count, url, enable_push):
+def _execute_download(task_id, username, download_type, count, index, url, enable_push):
     """执行下载任务（后台线程）"""
     try:
         logger.info(f"[{task_id}] 开始执行下载任务")
@@ -133,31 +134,24 @@ def _execute_download(task_id, username, download_type, count, url, enable_push)
         download_tasks[task_id]['message'] = '正在获取帖子链接...'
         socketio.emit('task_update', download_tasks[task_id])
 
-        logger.info(f"[{task_id}] 下载参数: username={username}, type={download_type}, count={count}, url={url}")
+        logger.info(f"[{task_id}] 下载参数: username={username}, type={download_type}, count={count}, index={index}, url={url}")
 
         # 获取链接
         if download_type == 'single':
-            # 支持三种格式：完整URL、shortcode、或"用户名 序号"
             if url.startswith('http'):
                 urls = [url]
                 username = get_shortcode_from_url(urls[0]) or 'single_post'
-            elif ' ' in url:
-                # 格式：username position
-                parts = url.split()
-                if len(parts) == 2 and parts[1].isdigit():
-                    username = parts[0]
-                    position = int(parts[1])
-                    all_urls = fetch_post_urls(username, position)
-                    if position <= len(all_urls):
-                        urls = [all_urls[position - 1]]
-                    else:
-                        raise Exception(f'该账号只有 {len(all_urls)} 条帖子')
-                else:
-                    raise Exception('格式错误，应为：用户名 序号')
             else:
-                # shortcode
                 urls = [f"https://www.instagram.com/p/{url}/"]
                 username = get_shortcode_from_url(urls[0]) or 'single_post'
+        elif download_type == 'index':
+            all_urls = fetch_post_urls(username, index)
+            if index <= len(all_urls):
+                urls = [all_urls[index - 1]]
+            else:
+                raise Exception(f'该账号只有 {len(all_urls)} 条帖子')
+        elif download_type == 'all':
+            urls = fetch_post_urls(username, 9999)
         else:  # latest
             urls = fetch_post_urls(username, count)
 

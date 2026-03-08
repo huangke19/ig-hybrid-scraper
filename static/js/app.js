@@ -97,6 +97,8 @@ document.getElementById('download-type').addEventListener('change', (e) => {
     const type = e.target.value;
 
     document.getElementById('latest-options').style.display = type === 'latest' ? 'block' : 'none';
+    document.getElementById('index-options').style.display = type === 'index' ? 'block' : 'none';
+    document.getElementById('all-options').style.display = type === 'all' ? 'block' : 'none';
     document.getElementById('single-options').style.display = type === 'single' ? 'block' : 'none';
 });
 
@@ -120,10 +122,12 @@ document.getElementById('start-download-btn').addEventListener('click', async ()
 
     if (downloadType === 'latest') {
         payload.count = parseInt(document.getElementById('post-count').value);
+    } else if (downloadType === 'index') {
+        payload.index = parseInt(document.getElementById('post-index').value);
     } else if (downloadType === 'single') {
         payload.url = document.getElementById('post-url').value.trim();
         if (!payload.url) {
-            showToast('请输入帖子 URL、shortcode 或用户名 序号', 'error');
+            showToast('请输入帖子 URL 或 shortcode', 'error');
             return;
         }
     }

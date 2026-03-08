@@ -33,8 +33,10 @@
                 <div class="form-group">
                     <label>下载类型</label>
                     <select id="download-type" class="input">
-                        <option value="latest">最新 N 条帖子</option>
-                        <option value="single">单条帖子（URL/shortcode/用户名 序号）</option>
+                        <option value="index">下载第几条</option>
+                        <option value="latest">下载前几条</option>
+                        <option value="all">下载全部</option>
+                        <option value="single">单条帖子（URL/shortcode）</option>
                     </select>
                 </div>
 
@@ -45,11 +47,25 @@
                     </div>
                 </div>
 
+                <div id="index-options" class="options-group" style="display: none;">
+                    <div class="form-group">
+                        <label>帖子序号</label>
+                        <input type="number" id="post-index" value="1" min="1" class="input">
+                        <small>下载第几条帖子（1 表示最新的第一条）</small>
+                    </div>
+                </div>
+
+                <div id="all-options" class="options-group" style="display: none;">
+                    <div class="form-group">
+                        <small>将下载该用户的所有帖子，可能需要较长时间</small>
+                    </div>
+                </div>
+
                 <div id="single-options" class="options-group" style="display: none;">
                     <div class="form-group">
-                        <label>帖子 URL / shortcode / 用户名 序号</label>
-                        <input type="text" id="post-url" placeholder="https://www.instagram.com/p/... 或 shortcode 或 username 3" class="input">
-                        <small>支持三种格式：完整URL、shortcode、或"用户名 序号"（如：nike 5）</small>
+                        <label>帖子 URL / shortcode</label>
+                        <input type="text" id="post-url" placeholder="https://www.instagram.com/p/... 或 shortcode" class="input">
+                        <small>支持完整 URL 或 shortcode</small>
                     </div>
                 </div>
 
