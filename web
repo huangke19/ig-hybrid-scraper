@@ -4,6 +4,7 @@
 #   ./web         启动（后台）
 #   ./web stop    优雅停止
 #   ./web restart 重启
+#   ./web log     查看实时日志
 
 set -e
 
@@ -11,6 +12,7 @@ cd "$(dirname "$0")"
 
 PID_FILE="gunicorn.pid"
 LOG_FILE="web.log"
+APP_LOG_FILE="web_app.log"
 
 if [ -d ".venv" ]; then
     source .venv/bin/activate
@@ -83,6 +85,14 @@ case "$1" in
     restart)
         stop_server
         start_server
+        ;;
+    log)
+        if [ -f "$APP_LOG_FILE" ]; then
+            tail -f "$APP_LOG_FILE"
+        else
+            echo "⚠️  应用日志文件不存在: $APP_LOG_FILE"
+            echo "💡 请先启动 Web UI 或重启以生成日志"
+        fi
         ;;
     *)
         start_server

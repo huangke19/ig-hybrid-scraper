@@ -29,7 +29,11 @@ except ImportError:
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+        logging.FileHandler('web_app.log'),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -145,11 +149,11 @@ def _execute_download(task_id, username, download_type, count, index, url, enabl
                 urls = [f"https://www.instagram.com/p/{url}/"]
                 username = get_shortcode_from_url(urls[0]) or 'single_post'
         elif download_type == 'index':
-            all_urls = fetch_post_urls(username, index)
+            all_urls = fetch_post_urls(username, 9999)
             if index <= len(all_urls):
                 urls = [all_urls[index - 1]]
             else:
-                raise Exception(f'该账号只有 {len(all_urls)} 条帖子')
+                raise Exception(f'该账号只有 {len(all_urls)} 条帖子，无法下载第 {index} 条')
         elif download_type == 'all':
             urls = fetch_post_urls(username, 9999)
         else:  # latest

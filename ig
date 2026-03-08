@@ -53,7 +53,7 @@ start_bot() {
     fi
 
     echo "🤖 启动 Telegram Bot（后台）..."
-    nohup python telegram_command_bot.py > "$BOT_LOG_FILE" 2>&1 &
+    nohup python -u telegram_command_bot.py > "$BOT_LOG_FILE" 2>&1 &
     echo $! > "$BOT_PID_FILE"
     sleep 1
 
@@ -101,6 +101,9 @@ case "$1" in
                 stop_bot
                 start_bot
                 ;;
+            log)
+                tail -f "$BOT_LOG_FILE"
+                ;;
             *)
                 start_bot
                 ;;
@@ -117,9 +120,11 @@ case "$1" in
         echo "  ig web              启动 Web UI（后台）"
         echo "  ig web stop         停止 Web UI"
         echo "  ig web restart      重启 Web UI"
+        echo "  ig web log          查看 Web UI 实时日志"
         echo "  ig bot              启动 Telegram Bot（后台）"
         echo "  ig bot stop         停止 Telegram Bot"
         echo "  ig bot restart      重启 Telegram Bot"
+        echo "  ig bot log          查看 Bot 实时日志"
         echo "  ig status           查看所有服务状态"
         echo ""
         show_status

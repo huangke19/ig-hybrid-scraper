@@ -18,6 +18,7 @@ def get_updates(token: str, offset: int = 0, timeout: int = 30):
     url = f"https://api.telegram.org/bot{token}/getUpdates"
     params = {"offset": offset, "timeout": timeout}
     try:
+        print(f"⏳ 等待新消息... (offset={offset})")
         resp = requests.get(url, params=params, timeout=timeout + 5)
         return resp.json() if resp.ok else None
     except Exception as e:
@@ -42,6 +43,7 @@ def handle_command(token: str, chat_id: str, text: str):
         if not url.startswith('http'):
             url = 'https://' + url
 
+        print(f"🔽 开始下载: {url}")
         try:
             download_selected_posts(
                 urls=[url],
@@ -49,7 +51,9 @@ def handle_command(token: str, chat_id: str, text: str):
                 tg_config=(token, chat_id),
                 push_mode="each"
             )
+            print(f"✅ 下载完成: {url}")
         except Exception as e:
+            print(f"❌ 下载失败: {url} - {e}")
             send_message(token, chat_id, f"❌ 下载失败: {str(e)}")
         return
 
@@ -66,12 +70,14 @@ def handle_command(token: str, chat_id: str, text: str):
         send_message(token, chat_id, f"🔍 正在获取 @{username} 的第 {post_index} 条帖子...")
 
         try:
+            print(f"🔍 获取 @{username} 的帖子列表...")
             urls = fetch_post_urls_via_selenium(username, post_index)
             if len(urls) < post_index:
                 send_message(token, chat_id, f"❌ 该账号只有 {len(urls)} 条帖子")
                 return
 
             target_url = urls[post_index - 1]
+            print(f"🔽 开始下载第 {post_index} 条: {target_url}")
 
             download_selected_posts(
                 urls=[target_url],
@@ -79,7 +85,9 @@ def handle_command(token: str, chat_id: str, text: str):
                 tg_config=(token, chat_id),
                 push_mode="each"
             )
+            print(f"✅ 下载完成: {target_url}")
         except Exception as e:
+            print(f"❌ 下载失败: {e}")
             send_message(token, chat_id, f"❌ 下载失败: {str(e)}")
         return
 
