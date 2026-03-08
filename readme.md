@@ -6,29 +6,30 @@
 
 ```
 ig_scraper/
-├── auth.py              # 登录 & 初始化配置（首次运行）
-├── scraper.py           # 主程序：下载 + 可选 Telegram 推送
-├── monitor.py           # 监控脚本：自动检测新帖子并推送通知
-├── utils.py             # 公共工具：浏览器、Cookie、重试、延时
-├── telegram_bot.py      # Telegram 推送模块
-├── config.py            # 配置文件管理模块
-├── web_app.py           # Web UI 服务（新增）
-├── config.yaml          # 配置文件（可选，复制 config.yaml.example 修改）
-├── config.yaml.example  # 配置文件示例
-├── run                  # 快速启动脚本（自动激活虚拟环境）
-├── web                  # Web UI 启动脚本（新增）
-├── monitor              # 监控脚本启动器
-├── com.ig.monitor.plist # macOS launchd 配置文件
-├── MONITOR.md           # 监控功能详细说明
-├── templates/           # Web UI 模板文件（新增）
+├── auth.py                  # 登录 & 初始化配置（首次运行）
+├── scraper.py               # 主程序：下载 + 可选 Telegram 推送
+├── monitor.py               # 监控脚本：自动检测新帖子并推送通知
+├── telegram_command_bot.py  # Telegram 命令 Bot：接收远程下载指令（新增）
+├── utils.py                 # 公共工具：浏览器、Cookie、重试、延时
+├── telegram_bot.py          # Telegram 推送模块
+├── config.py                # 配置文件管理模块
+├── web_app.py               # Web UI 服务
+├── config.yaml              # 配置文件（可选，复制 config.yaml.example 修改）
+├── config.yaml.example      # 配置文件示例
+├── run                      # 快速启动脚本（自动激活虚拟环境）
+├── web                      # 一键启停脚本：Web UI + Telegram Bot + 监控（新增）
+├── monitor                  # 监控脚本启动器
+├── com.ig.monitor.plist     # macOS launchd 配置文件
+├── MONITOR.md               # 监控功能详细说明
+├── templates/               # Web UI 模板文件
 │   └── index.html
-├── static/              # Web UI 静态资源（新增）
+├── static/                  # Web UI 静态资源
 │   ├── css/style.css
 │   └── js/app.js
-├── cookies.pkl          # 登录后自动生成，勿手动修改
-├── tg_config.json       # Telegram 配置，自动生成
-├── downloaded_users.json # 下载历史用户列表，自动生成
-└── .cache/              # 链接缓存目录，自动生成
+├── cookies.pkl              # 登录后自动生成，勿手动修改
+├── tg_config.json           # Telegram 配置，自动生成
+├── downloaded_users.json    # 下载历史用户列表，自动生成
+└── .cache/                  # 链接缓存目录，自动生成
 ```
 
 ## 安装依赖
@@ -51,13 +52,18 @@ python auth.py
 
 ### 第二步：选择使用方式
 
-#### 方式 1：Web UI（推荐）
+#### 方式 1：Web UI + Telegram Bot（推荐）
 
 ```bash
-./web
+./web          # 启动所有服务（Web UI + Telegram Bot + 监控）
+./web stop     # 停止所有服务
+./web restart  # 重启所有服务
 ```
 
-然后在浏览器访问 http://localhost:5000
+启动后会自动运行三个服务：
+- **Web UI**：浏览器访问 http://localhost:5000
+- **Telegram Bot**：接收远程下载指令
+- **监控服务**：自动检测新帖子（每 24 小时）
 
 Web UI 功能：
 - 📥 下载管理：可视化创建下载任务，实时查看进度
@@ -65,7 +71,25 @@ Web UI 功能：
 - ⚙️ 配置管理：在线配置 Telegram 推送
 - 📁 文件浏览：查看已下载的文件统计
 
-#### 方式 2：命令行
+Telegram Bot 命令：
+- 直接发送 IG 链接 → 自动下载帖子
+- `账号名 帖子序号` → 下载指定账号的第 N 条帖子（例如：`username 3`）
+- `/status` → 查看 Bot 运行状态
+- `/monitor` → 立即检查新帖子
+
+> 💡 提示：Telegram Bot 需要先配置好 `tg_config.json`（运行 `python auth.py` 或在 Web UI 中配置）
+
+#### 方式 2：仅启动 Web UI
+
+如果只想使用 Web UI，不需要 Telegram Bot 和监控服务：
+
+```bash
+# 手动启动（需要先激活虚拟环境）
+source .venv/bin/activate
+gunicorn -w 1 --threads 4 -b 0.0.0.0:5000 web_app:app
+```
+
+#### 方式 3：命令行
 
 ```bash
 ./run
@@ -92,6 +116,8 @@ python scraper.py
 
 ### 功能特性
 
+- **一键启停**：`./web` 脚本自动管理 Web UI、Telegram Bot、监控服务（新增）
+- **远程控制**：通过 Telegram Bot 接收下载指令，随时随地下载帖子（新增）
 - **用户列表管理**：自动记录下载过的用户，下次运行时显示在选项中
   - ⭐ 常用用户（在 `config.yaml` 中配置）
   - 📥 历史用户（自动记录到 `downloaded_users.json`）
@@ -100,7 +126,7 @@ python scraper.py
 - **性能优化**：预扫描文件索引，减少磁盘 I/O 操作
 - **批量下载**：支持一次性下载多个用户的内容
 - **新帖子监控**：自动检测用户发布新帖子，通过 Telegram 推送通知（详见 [MONITOR.md](MONITOR.md)）
-- **Web UI**：提供可视化界面，方便管理下载任务和配置（新增）
+- **Web UI**：提供可视化界面，方便管理下载任务和配置
 
 ---
 
@@ -111,16 +137,22 @@ python scraper.py
 ### 快速开始
 
 ```bash
-# 测试一次（推荐先测试）
-python monitor.py --once
+# 方式 1：使用 ./web 脚本（推荐）
+./web          # 自动启动监控服务（后台运行，每 24 小时检查一次）
+./web stop     # 停止所有服务（包括监控）
 
-# 持续运行（每 24 小时检查一次）
-./monitor
+# 方式 2：单独运行监控
+python monitor.py --once  # 测试一次（推荐先测试）
+./monitor                 # 持续运行（每 24 小时检查一次）
 
-# 或者配置 macOS 自动运行（推荐）
+# 方式 3：配置 macOS 自动运行
 cp com.ig.monitor.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/com.ig.monitor.plist
 ```
+
+### 通过 Telegram Bot 手动触发
+
+如果使用 `./web` 启动了 Telegram Bot，可以随时发送 `/monitor` 命令立即检查新帖子。
 
 详细说明请查看 [MONITOR.md](MONITOR.md)
 
@@ -226,6 +258,34 @@ favorite_users:
 - 单个文件超过 50MB 时 Telegram 会自动跳过（Bot API 限制）
 - 程序内置随机延时模拟真人行为，请勿同时开多个进程
 - `cookies.pkl` 和 `tg_config.json` 包含敏感信息，已加入 `.gitignore`
+- 使用 `./web` 启动的服务会在后台运行，日志文件：
+  - Web UI：`web.log`
+  - Telegram Bot：`telegram_bot.log`
+  - 监控服务：`monitor.log`
+
+## 常见问题
+
+### 如何查看服务运行状态？
+
+```bash
+# 查看所有服务状态
+ps aux | grep -E "gunicorn|telegram_command_bot|monitor.py"
+
+# 查看日志
+tail -f web.log              # Web UI 日志
+tail -f telegram_bot.log     # Telegram Bot 日志
+tail -f monitor.log          # 监控服务日志
+```
+
+### Telegram Bot 无法接收消息？
+
+1. 确认已在 Telegram 向 Bot 发送过 `/start`
+2. 检查 `tg_config.json` 中的 `bot_token` 和 `chat_id` 是否正确
+3. 查看 `telegram_bot.log` 日志排查错误
+
+### 如何只启动部分服务？
+
+编辑 `web` 脚本，注释掉不需要的服务启动代码即可。
 
 ## 项目维护
 
