@@ -115,6 +115,17 @@ document.getElementById('download-type').addEventListener('change', (e) => {
     document.getElementById('index-options').style.display = type === 'index' ? 'block' : 'none';
     document.getElementById('all-options').style.display = type === 'all' ? 'block' : 'none';
     document.getElementById('single-options').style.display = type === 'single' ? 'block' : 'none';
+
+    // single 类型不需要用户名，隐藏用户列表
+    const userListGroup = document.querySelector('.form-group:has(#user-list)');
+    const customUsernameInput = document.getElementById('custom-username');
+    if (type === 'single') {
+        if (userListGroup) userListGroup.style.display = 'none';
+        customUsernameInput.style.display = 'none';
+    } else {
+        if (userListGroup) userListGroup.style.display = 'block';
+        customUsernameInput.style.display = 'block';
+    }
 });
 
 // 开始下载

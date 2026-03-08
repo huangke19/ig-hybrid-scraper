@@ -146,20 +146,24 @@ def _execute_download(task_id, username, download_type, count, index, url, enabl
         if download_type == 'single':
             if url.startswith('http'):
                 urls = [url]
-                username = get_shortcode_from_url(urls[0]) or 'single_post'
+                shortcode = get_shortcode_from_url(urls[0])
+                username = shortcode if shortcode else 'single_post'
             else:
                 urls = [f"https://www.instagram.com/p/{url}/"]
-                username = get_shortcode_from_url(urls[0]) or 'single_post'
+                shortcode = get_shortcode_from_url(urls[0])
+                username = shortcode if shortcode else url[:20]
         elif download_type == 'index':
             all_urls = fetch_post_urls(username, 9999)
             if index <= len(all_urls):
                 urls = [all_urls[index - 1]]
             else:
                 raise Exception(f'该账号只有 {len(all_urls)} 条帖子，无法下载第 {index} 条')
+        elif download_type == 'latest':
+            urls = fetch_post_urls(username, count)
         elif download_type == 'all':
             urls = fetch_post_urls(username, 9999)
-        else:  # latest
-            urls = fetch_post_urls(username, count)
+        else:
+            raise Exception(f'未知的下载类型: {download_type}')
 
         logger.info(f"[{task_id}] 获取到 {len(urls)} 条链接")
 
