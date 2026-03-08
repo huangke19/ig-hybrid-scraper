@@ -4,6 +4,7 @@
 
 let selectedUsername = '';
 let taskRefreshInterval = null;
+let taskCache = [];
 const socket = io();
 
 // ─────────────────────────────────────────────
@@ -156,31 +157,24 @@ document.getElementById('start-download-btn').addEventListener('click', async ()
     }
 });
 
-// 加载任务列表
-async function loadTasks() {
-    try {
-        const response = await fetch('/api/tasks');
-        const data = await response.json();
+function renderTasks(tasks) {
+    const taskList = document.getElementById('task-list');
+    const activeTaskList = document.getElementById('active-task-list');
 
-        const taskList = document.getElementById('task-list');
+    if (!tasks || tasks.length === 0) {
+        activeTaskList.innerHTML = '<div class="empty-state" style="padding: 20px;">暂无执行中的任务</div>';
+        taskList.innerHTML = '<div class="empty-state">暂无任务</div>';
+        stopTaskRefresh();
+        return;
+    }
 
-        if (data.tasks.length === 0) {
-            taskList.innerHTML = '<div class="empty-state">暂无任务</div>';
-            stopTaskRefresh();
-            return;
-        }
+    const activeTasks = tasks.filter(task => task.status === 'running' || task.status === 'pending');
 
-        // 检查是否有运行中的任务
-        const hasRunningTask = data.tasks.some(task =>
-            task.status === 'running' || task.status === 'pending'
-        );
-
-        // 如果没有运行中的任务，停止自动刷新
-        if (!hasRunningTask) {
-            stopTaskRefresh();
-        }
-
-        taskList.innerHTML = data.tasks.map(task => `
+    if (activeTasks.length === 0) {
+        activeTaskList.innerHTML = '<div class="empty-state" style="padding: 20px;">暂无执行中的任务</div>';
+        stopTaskRefresh();
+    } else {
+        activeTaskList.innerHTML = activeTasks.map(task => `
             <div class="task-item">
                 <div class="task-header">
                     <div class="task-username">@${task.username}</div>
@@ -194,6 +188,31 @@ async function loadTasks() {
                 ` : ''}
             </div>
         `).join('');
+    }
+
+    taskList.innerHTML = tasks.map(task => `
+        <div class="task-item">
+            <div class="task-header">
+                <div class="task-username">@${task.username}</div>
+                <div class="task-status ${task.status}">${getStatusText(task.status)}</div>
+            </div>
+            <div class="task-message">${task.message}</div>
+            ${task.total > 0 ? `
+                <div class="task-progress">
+                    <div class="task-progress-bar" style="width: ${(task.progress / task.total) * 100}%"></div>
+                </div>
+            ` : ''}
+        </div>
+    `).join('');
+}
+
+// 加载任务列表
+async function loadTasks() {
+    try {
+        const response = await fetch('/api/tasks');
+        const data = await response.json();
+        taskCache = data.tasks || [];
+        renderTasks(taskCache);
     } catch (error) {
         console.error('加载任务失败:', error);
     }
@@ -558,8 +577,31 @@ document.addEventListener('DOMContentLoaded', () => {
     loadUsers();
     loadTasks();
 
-    socket.on('task_update', () => {
+    // Socket.IO 不稳定时，自动退回轮询兜底
+    startTaskRefresh();
+
+    socket.on('connect', () => {
+        stopTaskRefresh();
         loadTasks();
+    });
+
+    socket.on('disconnect', () => {
+        startTaskRefresh();
+    });
+
+    socket.on('connect_error', () => {
+        startTaskRefresh();
+    });
+
+    socket.on('task_update', (task) => {
+        const idx = taskCache.findIndex(t => t.id === task.id);
+        if (idx >= 0) {
+            taskCache[idx] = task;
+        } else {
+            taskCache.unshift(task);
+        }
+        taskCache.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        renderTasks(taskCache);
     });
 });
 

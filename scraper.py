@@ -345,9 +345,19 @@ def download_selected_posts(
         existing_files = existing_files_index.get(shortcode, [])
         if existing_files:
             print(f"  ⏭️  [{i}/{total}] 已存在，跳过下载: {shortcode}（{len(existing_files)} 个文件）")
-            # 已存在的文件不推送
+
+            # 已存在文件也支持推送
+            if push_mode == "each" and tg_config:
+                print(f"  📤 推送已存在内容: {shortcode}")
+                if progress_callback:
+                    progress_callback(i - 1, total, f"正在推送已存在内容: {shortcode} ({i}/{total})")
+                _push_files(token, chat_id, existing_files, shortcode)
+
+            if push_mode == "batch" and tg_config:
+                downloaded_items.append((existing_files, shortcode))
+
             if progress_callback:
-                progress_callback(i, total, f"已存在，跳过: {shortcode} ({i}/{total})")
+                progress_callback(i, total, f"已存在，处理完成: {shortcode} ({i}/{total})")
             continue
 
         print(f"  📥 [{i}/{total}] 下载中: {shortcode}")
