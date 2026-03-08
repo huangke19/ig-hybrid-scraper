@@ -27,6 +27,8 @@ from utils import (
     retry,
     save_urls_cache,
     load_urls_cache,
+    load_json_file,
+    save_json_file,
 )
 from telegram_bot import (
     send_message,
@@ -52,13 +54,7 @@ MEDIA_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".mp4", ".mov"}
 
 def load_downloaded_users() -> list[str]:
     """加载下载历史用户列表"""
-    try:
-        with open("downloaded_users.json", "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return []
-    except json.JSONDecodeError:
-        return []
+    return load_json_file("downloaded_users.json", default=[])
 
 
 def save_downloaded_user(username: str) -> None:
@@ -66,8 +62,7 @@ def save_downloaded_user(username: str) -> None:
     users = load_downloaded_users()
     if username not in users:
         users.append(username)
-        with open("downloaded_users.json", "w", encoding="utf-8") as f:
-            json.dump(users, f, ensure_ascii=False, indent=2)
+        save_json_file("downloaded_users.json", users)
 
 
 # ─────────────────────────────────────────────
@@ -121,11 +116,11 @@ def fetch_post_urls_via_selenium(target_user: str, required_count: int) -> list[
         driver.get("https://www.instagram.com/")
         if load_cookies_for_selenium(driver):
             driver.refresh()
-            time.sleep(2)
+            human_sleep(1.5, 2.5)
 
         print(f"\n🚀 正在检索 @{target_user} 的主页链接...")
         driver.get(f"https://www.instagram.com/{target_user}/")
-        time.sleep(4)
+        human_sleep(3, 5)
 
         last_height = driver.execute_script("return document.body.scrollHeight")
         no_change_count = 0
@@ -144,7 +139,7 @@ def fetch_post_urls_via_selenium(target_user: str, required_count: int) -> list[
                 break
 
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(random.uniform(*SCROLL_PAUSE))
+            human_sleep(SCROLL_PAUSE[0], SCROLL_PAUSE[1])
 
             new_height = driver.execute_script("return document.body.scrollHeight")
             if new_height == last_height:
@@ -421,7 +416,7 @@ def download_selected_posts(
                 progress_callback(total, total, f"Telegram 推送中: {sc} ({idx}/{len(valid_items)})")
             _push_files(token, chat_id, files, sc)
             if idx < len(valid_items):
-                time.sleep(1.5)
+                human_sleep(1, 2)
         send_message(token, chat_id, f"✅ <b>@{save_folder}</b> 全部推送完毕！共 {len(valid_items)} 个帖子。")
         print("🎉 所有帖子已推送到 Telegram！")
 

@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from utils import get_shortcode_from_url
+from utils import get_shortcode_from_url, load_json_file, save_json_file, human_sleep
 from scraper import fetch_post_urls
 from telegram_bot import send_message, load_tg_config
 
@@ -27,29 +27,13 @@ HISTORY_FILE = "monitor_history.json"
 
 
 def load_monitor_history() -> dict:
-    """
-    加载监控历史记录
-    格式: {
-        "user1": {
-            "last_check_time": "2026-03-08 10:30:00",
-            "last_shortcode": "ABC123xyz",
-            "total_posts": 50
-        }
-    }
-    """
-    try:
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-    except json.JSONDecodeError:
-        return {}
+    """加载监控历史记录"""
+    return load_json_file(HISTORY_FILE, default={})
 
 
 def save_monitor_history(history: dict) -> None:
     """保存监控历史记录"""
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
+    save_json_file(HISTORY_FILE, history)
 
 
 def update_user_history(username: str, latest_shortcode: str) -> None:
@@ -159,7 +143,7 @@ def monitor_once() -> None:
                 update_user_history(username, latest_shortcode)
 
         # 避免请求过快
-        time.sleep(2)
+        human_sleep(1.5, 2.5)
 
     # 发送通知
     if notifications:

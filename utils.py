@@ -23,6 +23,9 @@ try:
 except ImportError:
     _config = None
 
+# ChromeDriver 路径缓存
+_chromedriver_path = None
+
 
 # ─────────────────────────────────────────────
 # 1. 浏览器初始化
@@ -72,8 +75,12 @@ def init_driver(headless: bool = None) -> webdriver.Chrome:
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
 
+    global _chromedriver_path
+    if _chromedriver_path is None:
+        _chromedriver_path = ChromeDriverManager().install()
+
     driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()),
+        service=Service(_chromedriver_path),
         options=options
     )
 
@@ -121,8 +128,8 @@ def load_cookies_for_selenium(driver: webdriver.Chrome, path: str = COOKIE_PATH)
         cookie.pop("sameSite", None)
         try:
             driver.add_cookie(cookie)
-        except Exception:
-            pass  # 个别字段不合法时静默跳过
+        except Exception as e:
+            print(f"  ⚠️  跳过无效 cookie: {cookie.get('name', 'unknown')} - {e}")
     return True
 
 
@@ -252,6 +259,25 @@ def human_sleep(
 CACHE_DIR = ".cache"
 
 
+def load_json_file(filepath: str, default=None):
+    """通用 JSON 文件加载函数"""
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return default if default is not None else {}
+    except json.JSONDecodeError as e:
+        print(f"  ⚠️  JSON 文件损坏: {filepath} - {e}")
+        return default if default is not None else {}
+
+
+def save_json_file(filepath: str, data: dict | list) -> None:
+    """通用 JSON 文件保存函数"""
+    os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
 def save_urls_cache(username: str, urls: list[str]) -> None:
     """
     保存链接缓存到本地文件。
@@ -291,6 +317,9 @@ def load_urls_cache(username: str) -> list[str] | None:
 
         print(f"  📂 找到缓存：{len(urls)} 条链接（缓存时间: {timestamp[:19]}）")
         return urls
+    except json.JSONDecodeError as e:
+        print(f"  ⚠️  缓存文件损坏: {cache_file} - {e}")
+        return None
     except Exception as e:
         print(f"  ⚠️  缓存文件读取失败: {e}")
         return None
