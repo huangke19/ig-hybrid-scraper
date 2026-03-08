@@ -4,6 +4,7 @@
 
 let selectedUsername = '';
 let taskRefreshInterval = null;
+const socket = io();
 
 // ─────────────────────────────────────────────
 // 工具函数
@@ -147,7 +148,6 @@ document.getElementById('start-download-btn').addEventListener('click', async ()
         if (response.ok) {
             showToast('任务已创建，开始下载');
             loadTasks();
-            startTaskRefresh();
         } else {
             showToast(data.error || '创建任务失败', 'error');
         }
@@ -557,7 +557,10 @@ document.getElementById('image-modal').addEventListener('click', (e) => {
 document.addEventListener('DOMContentLoaded', () => {
     loadUsers();
     loadTasks();
-    startTaskRefresh();
+
+    socket.on('task_update', () => {
+        loadTasks();
+    });
 });
 
 // 页面卸载时停止刷新

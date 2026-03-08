@@ -154,6 +154,12 @@ def _execute_download(task_id, username, download_type, count, start_pos, end_po
         download_tasks[task_id]['message'] = f'开始下载 {len(urls)} 个帖子...'
         socketio.emit('task_update', download_tasks[task_id])
 
+        def _on_progress(progress, total, message):
+            download_tasks[task_id]['progress'] = progress
+            download_tasks[task_id]['total'] = total
+            download_tasks[task_id]['message'] = message
+            socketio.emit('task_update', download_tasks[task_id])
+
         # 获取 Telegram 配置（仅在启用推送时）
         tg_config = None
         push_mode = 'none'
@@ -174,6 +180,7 @@ def _execute_download(task_id, username, download_type, count, start_pos, end_po
             username,
             tg_config=tg_config,
             push_mode=push_mode,
+            progress_callback=_on_progress,
         )
 
         # 保存用户到历史

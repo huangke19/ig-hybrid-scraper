@@ -301,6 +301,7 @@ def download_selected_posts(
     save_folder: str,
     tg_config: tuple[str, str] | None = None,
     push_mode: str = "none",
+    progress_callback=None,
 ) -> None:
     """
     批量下载帖子。
@@ -310,9 +311,13 @@ def download_selected_posts(
       push_mode  : "each"  → 每条下载后立即推送
                    "batch" → 全部下载完毕后统一推送
                    "none"  → 不推送
+      progress_callback: 可选回调，签名为 (progress, total, message)
     """
-    L = _build_loader(save_folder)
     total = len(urls)
+    if progress_callback:
+        progress_callback(0, total, "初始化下载器...")
+
+    L = _build_loader(save_folder)
     failed: list[str] = []
     downloaded_items: list[tuple[list[str], str]] = []  # (files, shortcode)
 
@@ -322,6 +327,8 @@ def download_selected_posts(
 
     # 预扫描：一次性建立已下载文件索引
     print(f"  🔍 正在扫描已下载文件...")
+    if progress_callback:
+        progress_callback(0, total, "正在扫描已下载文件...")
     existing_files_index = _build_files_index(base_dir)
     if existing_files_index:
         print(f"  📂 找到 {len(existing_files_index)} 个已下载的帖子")
@@ -330,6 +337,8 @@ def download_selected_posts(
         shortcode = get_shortcode_from_url(url)
         if not shortcode:
             print(f"  ⚠️  [{i}/{total}] 无法解析 shortcode，跳过: {url}")
+            if progress_callback:
+                progress_callback(i, total, f"跳过无效链接 ({i}/{total})")
             continue
 
         # 从索引中查找已存在的文件（无需重复扫描磁盘）
@@ -337,14 +346,20 @@ def download_selected_posts(
         if existing_files:
             print(f"  ⏭️  [{i}/{total}] 已存在，跳过下载: {shortcode}（{len(existing_files)} 个文件）")
             # 已存在的文件不推送
+            if progress_callback:
+                progress_callback(i, total, f"已存在，跳过: {shortcode} ({i}/{total})")
             continue
 
         print(f"  📥 [{i}/{total}] 下载中: {shortcode}")
+        if progress_callback:
+            progress_callback(i - 1, total, f"正在下载: {shortcode} ({i}/{total})")
         try:
             _download_one(L, shortcode, save_folder)
             print(f"  ✅ [{i}/{total}] 完成: {shortcode}")
 
             # 下载后动态扫描实际生成的文件
+            if progress_callback:
+                progress_callback(i - 1, total, f"正在整理文件: {shortcode} ({i}/{total})")
             files = _find_post_files(base_dir, shortcode)
             if files:
                 print(f"        找到 {len(files)} 个媒体文件")
@@ -357,13 +372,22 @@ def download_selected_posts(
             # ── 逐条推送模式 ──
             if push_mode == "each" and tg_config and files:
                 print(f"  📤 实时推送: {shortcode}")
+                if progress_callback:
+                    progress_callback(i - 1, total, f"正在推送 Telegram: {shortcode} ({i}/{total})")
                 _push_files(token, chat_id, files, shortcode)
+
+            if progress_callback:
+                progress_callback(i, total, f"已完成: {shortcode} ({i}/{total})")
 
         except Exception as e:
             print(f"  ❌ [{i}/{total}] 最终失败，已记录: {shortcode} ({e})")
             failed.append(shortcode)
+            if progress_callback:
+                progress_callback(i, total, f"失败: {shortcode} ({i}/{total})")
 
         if i < total:
+            if progress_callback:
+                progress_callback(i, total, f"等待下一条任务... ({i}/{total})")
             human_sleep()
 
     # ── 下载结束，汇报失败列表 ──
@@ -378,9 +402,13 @@ def download_selected_posts(
     if push_mode == "batch" and tg_config:
         valid_items = [(f, sc) for f, sc in downloaded_items if f]
         print(f"\n📤 开始批量推送 {len(valid_items)} 个帖子到 Telegram...")
+        if progress_callback:
+            progress_callback(total, total, f"开始批量推送 Telegram ({len(valid_items)} 条)...")
         send_message(token, chat_id, f"🚀 开始推送 <b>@{save_folder}</b> 的 {len(valid_items)} 个帖子...")
         for idx, (files, sc) in enumerate(valid_items, start=1):
             print(f"  [{idx}/{len(valid_items)}] 推送: {sc}")
+            if progress_callback:
+                progress_callback(total, total, f"Telegram 推送中: {sc} ({idx}/{len(valid_items)})")
             _push_files(token, chat_id, files, sc)
             if idx < len(valid_items):
                 time.sleep(1.5)
