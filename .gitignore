@@ -12,6 +12,7 @@ downloads/
 
 # 忽略敏感信息和调试文件
 cookies.pkl
+cookies.json
 debug_page.html
 config.yaml
 
@@ -24,6 +25,15 @@ downloaded_users.json
 urls_cache.json
 # 忽略监控历史和日志
 monitor_history.json
+monitor_state.json
 *.log
 *.pid
 *.backup
+
+# 忽略 Rust 编译产物
+monitor_rust/target/
+monitor_rust/Cargo.lock
+monitor
+
+# 忽略 Go 编译产物
+monitor_go/ig_monitor

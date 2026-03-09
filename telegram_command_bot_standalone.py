@@ -1,5 +1,5 @@
 """
-Telegram 命令 Bot (API 版本) - 通过 FastAPI 接口下载
+Telegram 命令 Bot (独立版本) - 直接调用 scraper 函数
 支持命令：
   直接发送 IG 链接 - 下载帖子
   账号名 帖子序号 - 下载指定账号的第N条帖子（例如：username 3）
@@ -8,14 +8,20 @@ Telegram 命令 Bot (API 版本) - 通过 FastAPI 接口下载
 
 import time
 import re
-import requests
 from telegram_bot import load_tg_config, send_message
+from scraper import fetch_post_urls, download_selected_posts
+from utils import get_shortcode_from_url
 
-API_BASE = "http://localhost:8000"
+try:
+    from config import Config
+    config = Config()
+except ImportError:
+    config = None
 
 
 def get_updates(token: str, offset: int = 0, timeout: int = 30):
     """长轮询获取新消息"""
+    import requests
     url = f"https://api.telegram.org/bot{token}/getUpdates"
     params = {"offset": offset, "timeout": timeout}
     try:
@@ -27,39 +33,12 @@ def get_updates(token: str, offset: int = 0, timeout: int = 30):
         return None
 
 
-def call_api(endpoint: str, method: str = "GET", data: dict = None):
-    """调用 FastAPI 接口"""
-    url = f"{API_BASE}{endpoint}"
-    try:
-        if method == "GET":
-            resp = requests.get(url, timeout=10)
-        else:
-            resp = requests.post(url, json=data, timeout=10)
-
-        if resp.ok:
-            return resp.json()
-        else:
-            print(f"❌ API 调用失败: {resp.status_code} - {resp.text}")
-            return None
-    except Exception as e:
-        print(f"❌ API 调用异常: {e}")
-        return None
-
-
 def handle_command(token: str, chat_id: str, text: str):
     """处理命令"""
     text = text.strip()
 
     if text == "/status":
-        result = call_api("/api/tasks")
-        if result:
-            tasks = result.get("tasks", [])
-            running = [t for t in tasks if t["status"] == "running"]
-            completed = [t for t in tasks if t["status"] == "completed"]
-            msg = f"✅ Bot 运行中\n📊 任务统计:\n• 运行中: {len(running)}\n• 已完成: {len(completed)}\n• 总计: {len(tasks)}"
-            send_message(token, chat_id, msg)
-        else:
-            send_message(token, chat_id, "✅ Bot 运行中（API 连接失败）")
+        send_message(token, chat_id, "✅ Bot 运行中（独立模式）")
         return
 
     # 检测是否是 IG 链接
@@ -74,19 +53,25 @@ def handle_command(token: str, chat_id: str, text: str):
         print(f"🔽 开始下载: {url}")
         send_message(token, chat_id, f"🔽 开始下载: {url}")
 
-        result = call_api("/api/download", "POST", {
-            "username": "",
-            "type": "single",
-            "url": url,
-            "enable_push": True
-        })
+        try:
+            shortcode = get_shortcode_from_url(url)
+            username = shortcode if shortcode else 'single_post'
 
-        if result:
-            task_id = result.get("task_id")
-            print(f"✅ 任务已创建: {task_id}")
-            send_message(token, chat_id, f"✅ 任务已创建，正在后台下载...")
-        else:
-            send_message(token, chat_id, "❌ 创建任务失败，请检查 API 服务")
+            tg_config = (token, chat_id)
+            push_mode = config.telegram_push_mode if config and config.telegram_enabled else 'batch'
+
+            download_selected_posts(
+                [url],
+                username,
+                tg_config=tg_config,
+                push_mode=push_mode
+            )
+
+            print(f"✅ 下载完成: {url}")
+        except Exception as e:
+            error_msg = f"❌ 下载失败: {str(e)}"
+            print(error_msg)
+            send_message(token, chat_id, error_msg)
         return
 
     # 检测格式：账号名 帖子序号
@@ -102,19 +87,30 @@ def handle_command(token: str, chat_id: str, text: str):
         print(f"🔽 下载 @{username} 的第 {post_index} 条帖子")
         send_message(token, chat_id, f"🔽 正在下载 @{username} 的第 {post_index} 条帖子...")
 
-        result = call_api("/api/download", "POST", {
-            "username": username,
-            "type": "index",
-            "index": post_index,
-            "enable_push": True
-        })
+        try:
+            all_urls = fetch_post_urls(username, post_index)
+            if post_index > len(all_urls):
+                error_msg = f"❌ 该账号只有 {len(all_urls)} 条帖子"
+                send_message(token, chat_id, error_msg)
+                return
 
-        if result:
-            task_id = result.get("task_id")
-            print(f"✅ 任务已创建: {task_id}")
-            send_message(token, chat_id, f"✅ 任务已创建，正在后台下载...")
-        else:
-            send_message(token, chat_id, "❌ 创建任务失败，请检查 API 服务")
+            url = all_urls[post_index - 1]
+
+            tg_config = (token, chat_id)
+            push_mode = config.telegram_push_mode if config and config.telegram_enabled else 'batch'
+
+            download_selected_posts(
+                [url],
+                username,
+                tg_config=tg_config,
+                push_mode=push_mode
+            )
+
+            print(f"✅ 下载完成: @{username} 第 {post_index} 条")
+        except Exception as e:
+            error_msg = f"❌ 下载失败: {str(e)}"
+            print(error_msg)
+            send_message(token, chat_id, error_msg)
         return
 
     if text.startswith("/"):
@@ -128,23 +124,15 @@ def handle_command(token: str, chat_id: str, text: str):
 
 def run_bot():
     """启动 Bot 主循环"""
-    config = load_tg_config()
-    if not config:
+    tg_config = load_tg_config()
+    if not tg_config:
         print("❌ 未找到 Telegram 配置，请先运行 python telegram_bot.py 配置")
         return
 
-    token, chat_id = config
-    print(f"🤖 Telegram Bot 启动中 (API 版本)...")
+    token, chat_id = tg_config
+    print(f"🤖 Telegram Bot 启动中 (独立模式)...")
     print(f"📱 Chat ID: {chat_id}")
-    print(f"🌐 API 地址: {API_BASE}")
     print(f"💡 直接发送 IG 链接即可下载")
-
-    # 测试 API 连接
-    result = call_api("/api/tasks")
-    if result:
-        print(f"✅ API 连接成功")
-    else:
-        print(f"⚠️  API 连接失败，请确保 FastAPI 服务已启动")
 
     offset = 0
 
