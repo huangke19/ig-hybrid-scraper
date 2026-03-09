@@ -179,7 +179,7 @@ def send_media_group(
             for fobj in files_dict.values():
                 fobj.close()
 
-        time.sleep(1)  # 避免触发频率限制
+        time.sleep(0.3)  # 避免触发频率限制
 
     return success
 
@@ -262,13 +262,13 @@ def push_download_folder(
         token, chat_id,
         f"🚀 开始推送 <b>@{target_user}</b> 的 {total} 个帖子..."
     )
-    time.sleep(0.5)
+    time.sleep(0.3)
 
     for i, sub in enumerate(sub_dirs, start=1):
         print(f"\n  [{i}/{total}] 推送文件夹: {sub.name}")
         push_post_folder(token, chat_id, str(sub), shortcode=sub.name)
         if i < total:
-            time.sleep(1.5)  # 限速，避免触发 Telegram flood limit
+            time.sleep(0.3)  # 限速，避免触发 Telegram flood limit
 
     send_message(token, chat_id, f"✅ <b>@{target_user}</b> 全部推送完毕！共 {total} 个帖子。")
     print(f"\n🎉 所有帖子已推送到 Telegram！")

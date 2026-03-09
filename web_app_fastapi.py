@@ -74,6 +74,7 @@ class DownloadRequest(BaseModel):
     index: int = 1
     url: str = ''
     enable_push: bool = True
+    max_workers: int = 3
 
 class TaskResponse(BaseModel):
     task_id: str
@@ -173,8 +174,9 @@ async def start_download(request: DownloadRequest, background_tasks: BackgroundT
     index = request.index
     url = request.url
     enable_push = request.enable_push
+    max_workers = request.max_workers
 
-    logger.info(f"收到下载请求: username={username}, type={download_type}, count={count}, index={index}")
+    logger.info(f"收到下载请求: username={username}, type={download_type}, count={count}, index={index}, max_workers={max_workers}")
 
     if not username and download_type != 'single':
         logger.warning("下载请求失败: 用户名为空")
@@ -197,13 +199,13 @@ async def start_download(request: DownloadRequest, background_tasks: BackgroundT
 
     background_tasks.add_task(
         _execute_download,
-        task_id, username, download_type, count, index, url, enable_push
+        task_id, username, download_type, count, index, url, enable_push, max_workers
     )
 
     return {'task_id': task_id, 'message': '任务已创建'}
 
 
-async def _execute_download(task_id, username, download_type, count, index, url, enable_push):
+async def _execute_download(task_id, username, download_type, count, index, url, enable_push, max_workers):
     try:
         logger.info(f"[{task_id}] 开始执行下载任务")
         download_tasks[task_id]['status'] = 'running'
@@ -262,6 +264,7 @@ async def _execute_download(task_id, username, download_type, count, index, url,
             tg_config=tg_config,
             push_mode=push_mode,
             progress_callback=_on_progress,
+            max_workers=max_workers,
         )
 
         save_downloaded_user(username)

@@ -22,7 +22,7 @@ def login_and_save(cookie_path: str = "cookies.pkl") -> None:
         print("=" * 50)
         input("👉 登录完成后按回车继续...")
 
-        time.sleep(2)  # 等待页面数据写入完毕
+        time.sleep(0.5)  # 等待页面数据写入完毕
         save_cookies(driver, path=cookie_path)
 
     finally:

@@ -14,6 +14,8 @@ import json
 import random
 import time
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 
 import instaloader
 from selenium.webdriver.common.by import By
@@ -104,9 +106,9 @@ def fetch_post_urls_via_selenium(target_user: str, required_count: int) -> list[
     MAX_NO_CHANGE = 3
     if config:
         behavior = config.behavior_config
-        SCROLL_PAUSE = (behavior.get('scroll_pause_min', 2.0), behavior.get('scroll_pause_max', 3.5))
+        SCROLL_PAUSE = (behavior.get('scroll_pause_min', 0.5), behavior.get('scroll_pause_max', 1.0))
     else:
-        SCROLL_PAUSE = (2.0, 3.5)
+        SCROLL_PAUSE = (0.5, 1.0)
 
     driver = init_driver()
     seen: set[str] = set()
@@ -116,11 +118,11 @@ def fetch_post_urls_via_selenium(target_user: str, required_count: int) -> list[
         driver.get("https://www.instagram.com/")
         if load_cookies_for_selenium(driver):
             driver.refresh()
-            human_sleep(1.5, 2.5)
+            human_sleep(0.5, 1.0)
 
         print(f"\n🚀 正在检索 @{target_user} 的主页链接...")
         driver.get(f"https://www.instagram.com/{target_user}/")
-        human_sleep(3, 5)
+        human_sleep(1.0, 1.5)
 
         last_height = driver.execute_script("return document.body.scrollHeight")
         no_change_count = 0
@@ -297,9 +299,10 @@ def download_selected_posts(
     tg_config: tuple[str, str] | None = None,
     push_mode: str = "none",
     progress_callback=None,
+    max_workers: int = 3,
 ) -> None:
     """
-    批量下载帖子。
+    批量下载帖子（支持并发）。
 
     参数：
       tg_config  : (bot_token, chat_id) 或 None（不推送）
@@ -307,6 +310,7 @@ def download_selected_posts(
                    "batch" → 全部下载完毕后统一推送
                    "none"  → 不推送
       progress_callback: 可选回调，签名为 (progress, total, message)
+      max_workers: 并发下载线程数（默认 3）
     """
     total = len(urls)
     if progress_callback:
@@ -314,13 +318,14 @@ def download_selected_posts(
 
     L = _build_loader(save_folder)
     failed: list[str] = []
-    downloaded_items: list[tuple[list[str], str]] = []  # (files, shortcode)
+    downloaded_items: list[tuple[list[str], str]] = []
+    progress_lock = Lock()
+    completed_count = 0
 
     token, chat_id = tg_config if tg_config else ("", "")
     base_dir = config.download_base_dir if config else "downloads"
     base_dir = str(Path(base_dir) / save_folder)
 
-    # 预扫描：一次性建立已下载文件索引
     print(f"  🔍 正在扫描已下载文件...")
     if progress_callback:
         progress_callback(0, total, "正在扫描已下载文件...")
@@ -328,6 +333,8 @@ def download_selected_posts(
     if existing_files_index:
         print(f"  📂 找到 {len(existing_files_index)} 个已下载的帖子")
 
+    # 分离已存在和需要下载的任务
+    to_download = []
     for i, url in enumerate(urls, start=1):
         shortcode = get_shortcode_from_url(url)
         if not shortcode:
@@ -336,64 +343,57 @@ def download_selected_posts(
                 progress_callback(i, total, f"跳过无效链接 ({i}/{total})")
             continue
 
-        # 从索引中查找已存在的文件（无需重复扫描磁盘）
         existing_files = existing_files_index.get(shortcode, [])
         if existing_files:
             print(f"  ⏭️  [{i}/{total}] 已存在，跳过下载: {shortcode}（{len(existing_files)} 个文件）")
-
-            # 已存在文件也支持推送
             if push_mode == "each" and tg_config:
                 print(f"  📤 推送已存在内容: {shortcode}")
-                if progress_callback:
-                    progress_callback(i - 1, total, f"正在推送已存在内容: {shortcode} ({i}/{total})")
                 _push_files(token, chat_id, existing_files, shortcode)
-
             if push_mode == "batch" and tg_config:
                 downloaded_items.append((existing_files, shortcode))
-
             if progress_callback:
                 progress_callback(i, total, f"已存在，处理完成: {shortcode} ({i}/{total})")
-            continue
+        else:
+            to_download.append((i, shortcode))
 
-        print(f"  📥 [{i}/{total}] 下载中: {shortcode}")
-        if progress_callback:
-            progress_callback(i - 1, total, f"正在下载: {shortcode} ({i}/{total})")
-        try:
-            _download_one(L, shortcode, save_folder)
-            print(f"  ✅ [{i}/{total}] 完成: {shortcode}")
+    # 并发下载
+    if to_download:
+        print(f"  🚀 开始并发下载 {len(to_download)} 个帖子（{max_workers} 线程）...")
 
-            # 下载后动态扫描实际生成的文件
-            if progress_callback:
-                progress_callback(i - 1, total, f"正在整理文件: {shortcode} ({i}/{total})")
-            files = _find_post_files(base_dir, shortcode)
-            if files:
-                print(f"        找到 {len(files)} 个媒体文件")
-                # 更新索引
-                existing_files_index[shortcode] = files
-            else:
-                print(f"  ⚠️  [{i}/{total}] 未在 {base_dir} 找到媒体文件，请检查下载目录")
-            downloaded_items.append((files, shortcode))
+        def download_task(task_info):
+            idx, shortcode = task_info
+            try:
+                _download_one(L, shortcode, save_folder)
+                files = _find_post_files(base_dir, shortcode)
+                return (idx, shortcode, files, None)
+            except Exception as e:
+                return (idx, shortcode, [], str(e))
 
-            # ── 逐条推送模式 ──
-            if push_mode == "each" and tg_config and files:
-                print(f"  📤 实时推送: {shortcode}")
-                if progress_callback:
-                    progress_callback(i - 1, total, f"正在推送 Telegram: {shortcode} ({i}/{total})")
-                _push_files(token, chat_id, files, shortcode)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(download_task, task): task for task in to_download}
 
-            if progress_callback:
-                progress_callback(i, total, f"已完成: {shortcode} ({i}/{total})")
+            for future in as_completed(futures):
+                idx, shortcode, files, error = future.result()
 
-        except Exception as e:
-            print(f"  ❌ [{i}/{total}] 最终失败，已记录: {shortcode} ({e})")
-            failed.append(shortcode)
-            if progress_callback:
-                progress_callback(i, total, f"失败: {shortcode} ({i}/{total})")
+                with progress_lock:
+                    completed_count += 1
 
-        if i < total:
-            if progress_callback:
-                progress_callback(i, total, f"等待下一条任务... ({i}/{total})")
-            human_sleep()
+                if error:
+                    print(f"  ❌ [{idx}/{total}] 失败: {shortcode} ({error})")
+                    failed.append(shortcode)
+                    if progress_callback:
+                        progress_callback(completed_count, total, f"失败: {shortcode} ({completed_count}/{total})")
+                else:
+                    print(f"  ✅ [{idx}/{total}] 完成: {shortcode}（{len(files)} 个文件）")
+                    existing_files_index[shortcode] = files
+                    downloaded_items.append((files, shortcode))
+
+                    if push_mode == "each" and tg_config and files:
+                        print(f"  📤 实时推送: {shortcode}")
+                        _push_files(token, chat_id, files, shortcode)
+
+                    if progress_callback:
+                        progress_callback(completed_count, total, f"已完成: {shortcode} ({completed_count}/{total})")
 
     # ── 下载结束，汇报失败列表 ──
     if failed:
@@ -416,7 +416,7 @@ def download_selected_posts(
                 progress_callback(total, total, f"Telegram 推送中: {sc} ({idx}/{len(valid_items)})")
             _push_files(token, chat_id, files, sc)
             if idx < len(valid_items):
-                human_sleep(1, 2)
+                time.sleep(0.3)
         send_message(token, chat_id, f"✅ <b>@{save_folder}</b> 全部推送完毕！共 {len(valid_items)} 个帖子。")
         print("🎉 所有帖子已推送到 Telegram！")
 

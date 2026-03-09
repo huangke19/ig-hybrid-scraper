@@ -242,17 +242,17 @@ def human_sleep(
     """
     if _config:
         behavior = _config.behavior_config
-        base_min = base_min if base_min is not None else behavior.get('human_delay_min', 4.0)
-        base_max = base_max if base_max is not None else behavior.get('human_delay_max', 8.0)
-        long_pause_prob = long_pause_prob if long_pause_prob is not None else behavior.get('long_pause_prob', 0.1)
-        long_min = long_min if long_min is not None else behavior.get('long_pause_min', 15.0)
-        long_max = long_max if long_max is not None else behavior.get('long_pause_max', 30.0)
+        base_min = base_min if base_min is not None else behavior.get('human_delay_min', 0.3)
+        base_max = base_max if base_max is not None else behavior.get('human_delay_max', 0.8)
+        long_pause_prob = long_pause_prob if long_pause_prob is not None else behavior.get('long_pause_prob', 0.0)
+        long_min = long_min if long_min is not None else behavior.get('long_pause_min', 1.0)
+        long_max = long_max if long_max is not None else behavior.get('long_pause_max', 2.0)
     else:
-        base_min = base_min if base_min is not None else 4.0
-        base_max = base_max if base_max is not None else 8.0
-        long_pause_prob = long_pause_prob if long_pause_prob is not None else 0.1
-        long_min = long_min if long_min is not None else 15.0
-        long_max = long_max if long_max is not None else 30.0
+        base_min = base_min if base_min is not None else 0.3
+        base_max = base_max if base_max is not None else 0.8
+        long_pause_prob = long_pause_prob if long_pause_prob is not None else 0.0
+        long_min = long_min if long_min is not None else 1.0
+        long_max = long_max if long_max is not None else 2.0
 
     if random.random() < long_pause_prob:
         t = random.uniform(long_min, long_max)
