@@ -5,6 +5,8 @@
 let selectedUsername = '';
 let taskRefreshInterval = null;
 let taskCache = [];
+let allUsers = [];
+let showOnlyFavorite = true;
 
 // ─────────────────────────────────────────────
 // 工具函数
@@ -29,30 +31,35 @@ function formatDate(isoString) {
 // Tab 切换
 // ─────────────────────────────────────────────
 
+function switchTab(tabName) {
+    // 切换按钮状态
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.tab-btn[data-tab="${tabName}"]`).classList.add('active');
+
+    // 切换内容
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+
+    // 保存当前 Tab 到 localStorage
+    localStorage.setItem('activeTab', tabName);
+
+    // 加载对应数据
+    if (tabName === 'download') {
+        loadUsers();
+        loadTasks();
+    } else if (tabName === 'config') {
+        loadTelegramConfig();
+        loadBotStatus();
+    } else if (tabName === 'files') {
+        loadFiles();
+    }
+}
+
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        const tabName = btn.dataset.tab;
-
-        // 切换按钮状态
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        // 切换内容
-        document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.remove('active');
-        });
-        document.getElementById(`${tabName}-tab`).classList.add('active');
-
-        // 加载对应数据
-        if (tabName === 'download') {
-            loadUsers();
-            loadTasks();
-        } else if (tabName === 'config') {
-            loadTelegramConfig();
-            loadBotStatus();
-        } else if (tabName === 'files') {
-            loadFiles();
-        }
+        switchTab(btn.dataset.tab);
     });
 });
 
@@ -65,33 +72,113 @@ async function loadUsers() {
         const response = await fetch('/api/users');
         const data = await response.json();
 
-        const userList = document.getElementById('user-list');
-
-        if (data.users.length === 0) {
-            userList.innerHTML = '<div class="empty-state">暂无用户</div>';
-            return;
-        }
-
-        userList.innerHTML = data.users.map(user => `
-            <div class="user-chip ${user.type}" data-username="${user.username}">
-                ${user.username}
-            </div>
-        `).join('');
-
-        // 绑定点击事件
-        document.querySelectorAll('.user-chip').forEach(chip => {
-            chip.addEventListener('click', () => {
-                document.querySelectorAll('.user-chip').forEach(c => c.classList.remove('selected'));
-                chip.classList.add('selected');
-                selectedUsername = chip.dataset.username;
-                document.getElementById('custom-username').value = '';
-                document.getElementById('custom-username').style.display = 'none';
-            });
-        });
+        allUsers = data.users;
+        renderUsers();
     } catch (error) {
         showToast('加载用户列表失败', 'error');
     }
 }
+
+function renderUsers() {
+    const userList = document.getElementById('user-list');
+
+    const usersToShow = showOnlyFavorite
+        ? allUsers.filter(u => u.type === 'favorite')
+        : allUsers;
+
+    if (usersToShow.length === 0) {
+        userList.innerHTML = '<div class="empty-state">暂无用户</div>';
+        return;
+    }
+
+    userList.innerHTML = usersToShow.map(user => `
+        <div class="user-chip ${user.type}" data-username="${user.username}">
+            <span class="star-icon ${user.type === 'favorite' ? 'active' : ''}" data-username="${user.username}">★</span>
+            <span class="username-text">${user.username}</span>
+            ${user.type === 'history' ? `<span class="delete-icon" data-username="${user.username}" data-type="${user.type}">×</span>` : ''}
+        </div>
+    `).join('');
+
+    // 绑定用户名点击事件
+    document.querySelectorAll('.username-text').forEach(text => {
+        text.addEventListener('click', (e) => {
+            const chip = e.target.closest('.user-chip');
+            document.querySelectorAll('.user-chip').forEach(c => c.classList.remove('selected'));
+            chip.classList.add('selected');
+            selectedUsername = chip.dataset.username;
+            document.getElementById('custom-username').value = '';
+            document.getElementById('custom-username').style.display = 'none';
+        });
+    });
+
+    // 绑定星标点击事件
+    document.querySelectorAll('.star-icon').forEach(star => {
+        star.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const username = star.dataset.username;
+            const isFavorite = star.classList.contains('active');
+
+            try {
+                if (isFavorite) {
+                    await fetch(`/api/users/favorite/${username}`, { method: 'DELETE' });
+                    showToast(`已取消收藏 ${username}`, 'success');
+                } else {
+                    await fetch(`/api/users/favorite?username=${username}`, { method: 'POST' });
+                    showToast(`已收藏 ${username}`, 'success');
+                }
+                await loadUsers();
+            } catch (error) {
+                showToast('操作失败', 'error');
+            }
+        });
+    });
+
+    // 绑定删除按钮点击事件
+    document.querySelectorAll('.delete-icon').forEach(deleteBtn => {
+        deleteBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const username = deleteBtn.dataset.username;
+            const userType = deleteBtn.dataset.type;
+
+            if (!confirm(`确定要删除用户 ${username} 吗？`)) {
+                return;
+            }
+
+            try {
+                const endpoint = userType === 'favorite'
+                    ? `/api/users/favorite/${username}`
+                    : `/api/users/history/${username}`;
+
+                await fetch(endpoint, { method: 'DELETE' });
+                showToast(`已删除 ${username}`, 'success');
+
+                // 如果删除的是当前选中的用户，清空选择
+                if (selectedUsername === username) {
+                    selectedUsername = '';
+                }
+
+                await loadUsers();
+            } catch (error) {
+                showToast('删除失败', 'error');
+            }
+        });
+    });
+}
+
+// 切换按钮事件
+document.getElementById('show-favorite-btn').addEventListener('click', () => {
+    showOnlyFavorite = true;
+    document.getElementById('show-favorite-btn').classList.add('active');
+    document.getElementById('show-all-btn').classList.remove('active');
+    renderUsers();
+});
+
+document.getElementById('show-all-btn').addEventListener('click', () => {
+    showOnlyFavorite = false;
+    document.getElementById('show-all-btn').classList.add('active');
+    document.getElementById('show-favorite-btn').classList.remove('active');
+    renderUsers();
+});
 
 // 自定义用户名输入框事件
 document.getElementById('custom-username').addEventListener('input', (e) => {
@@ -627,8 +714,9 @@ document.getElementById('image-modal').addEventListener('click', (e) => {
 // ─────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-    loadUsers();
-    loadTasks();
+    // 恢复上次的 Tab 状态，默认为 'download'
+    const activeTab = localStorage.getItem('activeTab') || 'download';
+    switchTab(activeTab);
     startTaskRefresh();
 });
 

@@ -160,6 +160,47 @@ async def get_users():
     return {'users': users}
 
 
+@app.post('/api/users/favorite')
+async def add_favorite_user(username: str):
+    if not config:
+        raise HTTPException(status_code=500, detail="配置模块未加载")
+
+    username = username.strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="用户名不能为空")
+
+    success = config.add_favorite_user(username)
+    if success:
+        logger.info(f"添加收藏用户: {username}")
+        return {'message': '添加成功', 'username': username}
+    else:
+        raise HTTPException(status_code=500, detail="保存配置失败")
+
+
+@app.delete('/api/users/favorite/{username}')
+async def remove_favorite_user(username: str):
+    if not config:
+        raise HTTPException(status_code=500, detail="配置模块未加载")
+
+    success = config.remove_favorite_user(username)
+    if success:
+        logger.info(f"移除收藏用户: {username}")
+        return {'message': '移除成功', 'username': username}
+    else:
+        raise HTTPException(status_code=500, detail="保存配置失败")
+
+
+@app.delete('/api/users/history/{username}')
+async def remove_history_user(username: str):
+    from scraper import remove_downloaded_user
+    success = remove_downloaded_user(username)
+    if success:
+        logger.info(f"移除历史用户: {username}")
+        return {'message': '移除成功', 'username': username}
+    else:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+
 # ─────────────────────────────────────────────
 # 下载任务 API
 # ─────────────────────────────────────────────

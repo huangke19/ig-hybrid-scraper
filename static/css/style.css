@@ -202,6 +202,43 @@ nav {
     transition: all 0.3s ease;
     border: 2px solid transparent;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.user-chip .star-icon {
+    cursor: pointer;
+    font-size: 16px;
+    color: #ccc;
+    transition: all 0.2s ease;
+}
+
+.user-chip .star-icon:hover {
+    transform: scale(1.2);
+}
+
+.user-chip .star-icon.active {
+    color: #ffd700;
+}
+
+.user-chip .delete-icon {
+    cursor: pointer;
+    font-size: 20px;
+    color: #ccc;
+    transition: all 0.2s ease;
+    margin-left: auto;
+    line-height: 1;
+}
+
+.user-chip .delete-icon:hover {
+    color: #ff4444;
+    transform: scale(1.2);
+}
+
+.user-chip .username-text {
+    cursor: pointer;
+    flex: 1;
 }
 
 .user-chip:hover {
@@ -218,12 +255,20 @@ nav {
     transform: translateY(-2px);
 }
 
+.user-chip.selected .star-icon {
+    color: #fff;
+}
+
+.user-chip.selected .star-icon.active {
+    color: #ffd700;
+}
+
 .user-chip.favorite::before {
-    content: "⭐ ";
+    content: "";
 }
 
 .user-chip.history::before {
-    content: "📥 ";
+    content: "";
 }
 
 .btn {
@@ -236,6 +281,24 @@ nav {
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
+}
+
+.btn-small {
+    padding: 8px 16px;
+    font-size: 13px;
+    border-radius: 8px;
+    background: #f5f5f5;
+    color: #333;
+}
+
+.btn-small:hover {
+    background: #e8e8e8;
+    transform: translateY(-1px);
+}
+
+.btn-small.active {
+    background: #667eea;
+    color: white;
 }
 
 .btn::before {

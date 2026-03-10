@@ -67,6 +67,16 @@ def save_downloaded_user(username: str) -> None:
         save_json_file("downloaded_users.json", users)
 
 
+def remove_downloaded_user(username: str) -> bool:
+    """从历史记录中删除用户"""
+    users = load_downloaded_users()
+    if username in users:
+        users.remove(username)
+        save_json_file("downloaded_users.json", users)
+        return True
+    return False
+
+
 # ─────────────────────────────────────────────
 # 1. 链接提取模块
 # ─────────────────────────────────────────────
