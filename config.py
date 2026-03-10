@@ -158,6 +158,36 @@ class Config:
         """获取常用用户列表"""
         return self._data.get('favorite_users', [])
 
+    def save_config(self) -> bool:
+        """保存配置到文件"""
+        if yaml is None:
+            print("⚠️  未安装 PyYAML，无法保存配置")
+            return False
+
+        try:
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                yaml.safe_dump(self._data, f, allow_unicode=True, default_flow_style=False)
+            return True
+        except Exception as e:
+            print(f"⚠️  保存配置失败: {e}")
+            return False
+
+    def add_favorite_user(self, username: str) -> bool:
+        """添加收藏用户"""
+        if username not in self._data.get('favorite_users', []):
+            if 'favorite_users' not in self._data:
+                self._data['favorite_users'] = []
+            self._data['favorite_users'].append(username)
+            return self.save_config()
+        return True
+
+    def remove_favorite_user(self, username: str) -> bool:
+        """移除收藏用户"""
+        if username in self._data.get('favorite_users', []):
+            self._data['favorite_users'].remove(username)
+            return self.save_config()
+        return True
+
 
 def create_example_config(output_path: str = "config.yaml.example") -> None:
     """创建示例配置文件（带中文注释）"""
