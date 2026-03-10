@@ -170,7 +170,7 @@ document.getElementById('start-download-btn').addEventListener('click', async ()
             showToast('任务已创建，开始下载');
             loadTasks();
         } else {
-            showToast(data.error || '创建任务失败', 'error');
+            showToast(data.detail || data.error || '创建任务失败', 'error');
         }
     } catch (error) {
         showToast('网络错误', 'error');
@@ -343,7 +343,7 @@ document.getElementById('save-telegram-btn').addEventListener('click', async () 
             document.getElementById('tg-token').value = '';
             document.getElementById('tg-chat-id').value = '';
         } else {
-            showToast(data.error || '保存失败', 'error');
+            showToast(data.detail || data.error || '保存失败', 'error');
         }
     } catch (error) {
         showToast('网络错误', 'error');
@@ -359,7 +359,7 @@ document.getElementById('start-bot-btn').addEventListener('click', async () => {
             showToast(data.message);
             setTimeout(loadBotStatus, 1000);
         } else {
-            showToast(data.error || '启动失败', 'error');
+            showToast(data.detail || data.error || '启动失败', 'error');
         }
     } catch (error) {
         showToast('网络错误', 'error');
@@ -375,7 +375,7 @@ document.getElementById('stop-bot-btn').addEventListener('click', async () => {
             showToast(data.message);
             setTimeout(loadBotStatus, 500);
         } else {
-            showToast(data.error || '停止失败', 'error');
+            showToast(data.detail || data.error || '停止失败', 'error');
         }
     } catch (error) {
         showToast('网络错误', 'error');
@@ -389,7 +389,7 @@ document.getElementById('restart-bot-btn').addEventListener('click', async () =>
         const stopResponse = await fetch('/api/bot/stop', { method: 'POST' });
         if (!stopResponse.ok) {
             const data = await stopResponse.json();
-            showToast(data.error || '停止失败', 'error');
+            showToast(data.detail || data.error || '停止失败', 'error');
             return;
         }
 
@@ -402,7 +402,7 @@ document.getElementById('restart-bot-btn').addEventListener('click', async () =>
             showToast('Bot 重启成功');
             setTimeout(loadBotStatus, 1000);
         } else {
-            showToast(data.error || '启动失败', 'error');
+            showToast(data.detail || data.error || '启动失败', 'error');
         }
     } catch (error) {
         showToast('网络错误', 'error');

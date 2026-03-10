@@ -335,11 +335,20 @@ async def save_telegram_config(config_data: TelegramConfig):
 @app.get('/api/bot/status', response_model=BotStatusResponse)
 async def get_bot_status():
     try:
-        result = subprocess.run(['pgrep', '-f', 'telegram_command_bot.py'],
-                              capture_output=True, text=True)
-        running = bool(result.stdout.strip())
-        pid = result.stdout.strip() if running else None
-        return {'running': running, 'pid': pid}
+        pid_file = os.path.join(os.path.dirname(__file__), 'telegram_bot_api.pid')
+        if not os.path.exists(pid_file):
+            return {'running': False, 'pid': None}
+
+        with open(pid_file, 'r') as f:
+            pid = f.read().strip()
+
+        # 检查进程是否真的在运行
+        try:
+            result = subprocess.run(['ps', '-p', pid], capture_output=True, text=True)
+            running = result.returncode == 0
+            return {'running': running, 'pid': pid if running else None}
+        except:
+            return {'running': False, 'pid': None}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -347,19 +356,19 @@ async def get_bot_status():
 @app.post('/api/bot/start', response_model=MessageResponse)
 async def start_bot():
     try:
-        result = subprocess.run(['pgrep', '-f', 'telegram_command_bot.py'],
+        result = subprocess.run(['pgrep', '-f', 'telegram_command_bot_standalone.py'],
                               capture_output=True, text=True)
         if result.stdout.strip():
             raise HTTPException(status_code=400, detail='Bot 已在运行中')
 
-        script_path = os.path.join(os.path.dirname(__file__), 'telegram_command_bot.py')
+        script_path = os.path.join(os.path.dirname(__file__), 'telegram_command_bot_standalone.py')
         process = subprocess.Popen(['python', '-u', script_path],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                         start_new_session=True,
                         cwd=os.path.dirname(__file__))
 
-        pid_file = os.path.join(os.path.dirname(__file__), 'telegram_bot.pid')
+        pid_file = os.path.join(os.path.dirname(__file__), 'telegram_bot_api.pid')
         with open(pid_file, 'w') as f:
             f.write(str(process.pid))
 
@@ -375,7 +384,7 @@ async def start_bot():
 @app.post('/api/bot/stop', response_model=MessageResponse)
 async def stop_bot():
     try:
-        result = subprocess.run(['pgrep', '-f', 'telegram_command_bot.py'],
+        result = subprocess.run(['pgrep', '-f', 'telegram_command_bot_standalone.py'],
                               capture_output=True, text=True)
         pids = result.stdout.strip().split('\n')
         pids = [p for p in pids if p]
@@ -386,7 +395,7 @@ async def stop_bot():
         for pid in pids:
             subprocess.run(['kill', pid])
 
-        pid_file = os.path.join(os.path.dirname(__file__), 'telegram_bot.pid')
+        pid_file = os.path.join(os.path.dirname(__file__), 'telegram_bot_api.pid')
         if os.path.exists(pid_file):
             os.remove(pid_file)
 
